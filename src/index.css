@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.react-pdf__Page {
+  position: relative;
+}
+
+.textLayer {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+.textLayer :is(span, br)::selection {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.textLayer :is(span, br)::-moz-selection {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.react-pdf__Page__textContent {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+.react-pdf__Page__textContent span::selection {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.react-pdf__Page__textContent span::-moz-selection {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+/* Plain text viewer selection styles */
+.select-text {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+
+.select-text::selection {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.select-text::-moz-selection {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.2s ease-out;
+}
