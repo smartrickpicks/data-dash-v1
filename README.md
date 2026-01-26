@@ -1,6 +1,9 @@
 See Field Intelligence Guide for questions, references, up-to-date glossary, + more
 https://docs.google.com/document/d/1msjfVRSlFFnsTI-hinwGYBVpOLatmFqvsJecLcXG2sE/edit?usp=sharing 
 
+
+<img width="1024" height="1024" alt="image" src="https://github.com/user-attachments/assets/7363e8ed-c886-4d30-8c3c-21dd68ccc12e" />
+
 # data-dash-v1 📊
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/smartrickpicks/data-dash-v1/blob/main/LICENSE)
