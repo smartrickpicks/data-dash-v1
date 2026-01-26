@@ -4,7 +4,12 @@ https://docs.google.com/document/d/1msjfVRSlFFnsTI-hinwGYBVpOLatmFqvsJecLcXG2sE/
 
 <img width="1024" height="1024" alt="image" src="https://github.com/user-attachments/assets/7363e8ed-c886-4d30-8c3c-21dd68ccc12e" />
 
-# View Demo
+## 🎥 Demo
+See demo on Youtube below 
+
+  [![DataDash Demo](https://img.youtube.com/vi/K9dDxGmoWVI/0.jpg)](https://youtu.be/K9dDxGmoWVI)
+
+A walkthrough of DataDash’s contract data review workflow and Field Intelligence Guides.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/smartrickpicks/data-dash-v1/blob/main/LICENSE)
 ![Version](https://img.shields.io/badge/version-0.0.0-blue)
