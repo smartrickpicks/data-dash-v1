@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import {
   MessageSquare,
-  FileX,
+  Flag,
   Eye,
   CheckCircle2,
   Search,
   SortAsc,
   SortDesc,
+  AlertCircle,
+  AlertTriangle,
+  Info,
 } from 'lucide-react';
 import {
   Dataset,
@@ -14,12 +17,13 @@ import {
   RfiComments,
   FieldStatus,
   RfiCommentRow,
-  FlaggedDocumentRow,
+  FlagMap,
+  FlagRecord,
+  FLAG_CATEGORY_LABELS,
+  isFlagRoutedToSalesforce,
 } from '../types';
 import {
   getRfiAndCommentRows,
-  getFlaggedDocuments,
-  getNotApplicableReasonLabel,
 } from '../utils/reviewerHelpers';
 
 interface SalesforceVerifierDashboardProps {
@@ -27,6 +31,7 @@ interface SalesforceVerifierDashboardProps {
   anomalyMap: AnomalyMap;
   rfiComments: RfiComments;
   fieldStatuses: FieldStatus;
+  flagMap: FlagMap;
   onOpenRow: (sheetName: string, rowIndex: number) => void;
 }
 
@@ -199,19 +204,19 @@ function RfiCommentsTable({
   );
 }
 
-function FlaggedDocumentsTable({
-  rows,
+function SalesforceFlagsTable({
+  flags,
   onOpenRow,
 }: {
-  rows: FlaggedDocumentRow[];
+  flags: FlagRecord[];
   onOpenRow: (sheetName: string, rowIndex: number) => void;
 }) {
-  if (rows.length === 0) {
+  if (flags.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
-        <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
-        <p className="font-medium">No flagged documents</p>
-        <p className="text-sm">No documents have been marked as not applicable</p>
+        <Flag className="w-12 h-12 mx-auto mb-3 opacity-50" />
+        <p className="font-medium">No Salesforce flags</p>
+        <p className="text-sm">Flags for business logic and Salesforce issues appear here</p>
       </div>
     );
   }
@@ -223,40 +228,49 @@ function FlaggedDocumentsTable({
           <tr className="border-b bg-gray-50">
             <th className="text-left p-3 font-medium text-gray-700">Sheet</th>
             <th className="text-left p-3 font-medium text-gray-700">Row</th>
-            <th className="text-left p-3 font-medium text-gray-700">Contract</th>
             <th className="text-left p-3 font-medium text-gray-700">Reason</th>
-            <th className="text-left p-3 font-medium text-gray-700">Notes</th>
-            <th className="text-left p-3 font-medium text-gray-700">Flagged</th>
+            <th className="text-left p-3 font-medium text-gray-700">Severity</th>
+            <th className="text-left p-3 font-medium text-gray-700">Comment</th>
+            <th className="text-left p-3 font-medium text-gray-700">Created</th>
             <th className="text-right p-3 font-medium text-gray-700">Action</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
+          {flags.map((flag, i) => (
             <tr
-              key={`${row.sheetName}-${row.rowIndex}`}
+              key={flag.id}
               className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
             >
-              <td className="p-3 font-medium">{row.sheetName}</td>
-              <td className="p-3">{row.rowIndex + 1}</td>
-              <td className="p-3 max-w-xs truncate" title={row.contractFileName || row.contractUrl}>
-                {row.contractFileName || row.contractUrl || '-'}
+              <td className="p-3 font-medium">{flag.sheetName}</td>
+              <td className="p-3">{flag.rowIndex + 1}</td>
+              <td className="p-3 max-w-xs">
+                <p className="text-gray-700 text-xs" title={flag.reason || ''}>
+                  {flag.reason || '-'}
+                </p>
               </td>
               <td className="p-3">
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-                  {getNotApplicableReasonLabel(row.reasonKey)}
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                  flag.severity === 'blocking' ? 'bg-red-100 text-red-700' :
+                  flag.severity === 'warning' ? 'bg-amber-100 text-amber-700' :
+                  'bg-blue-100 text-blue-700'
+                }`}>
+                  {flag.severity === 'blocking' && <AlertCircle className="w-3 h-3" />}
+                  {flag.severity === 'warning' && <AlertTriangle className="w-3 h-3" />}
+                  {flag.severity === 'info' && <Info className="w-3 h-3" />}
+                  {flag.severity.charAt(0).toUpperCase() + flag.severity.slice(1)}
                 </span>
               </td>
               <td className="p-3 max-w-xs">
-                <p className="text-gray-600 text-xs line-clamp-2" title={row.freeText}>
-                  {row.freeText || '-'}
+                <p className="text-gray-600 text-xs line-clamp-2" title={flag.comment || ''}>
+                  {flag.comment || '-'}
                 </p>
               </td>
               <td className="p-3 text-xs text-gray-500">
-                {row.flaggedAt ? new Date(row.flaggedAt).toLocaleDateString() : '-'}
+                {new Date(flag.createdAt).toLocaleDateString()}
               </td>
               <td className="p-3 text-right">
                 <button
-                  onClick={() => onOpenRow(row.sheetName, row.rowIndex)}
+                  onClick={() => onOpenRow(flag.sheetName, flag.rowIndex)}
                   className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded transition-colors"
                 >
                   <Eye className="w-3.5 h-3.5" />
@@ -276,6 +290,7 @@ export function SalesforceVerifierDashboard({
   anomalyMap,
   rfiComments,
   fieldStatuses,
+  flagMap,
   onOpenRow,
 }: SalesforceVerifierDashboardProps) {
   const rfiRows: RfiCommentRow[] = useMemo(
@@ -283,10 +298,20 @@ export function SalesforceVerifierDashboard({
     [dataset, rfiComments, fieldStatuses]
   );
 
-  const flaggedDocs: FlaggedDocumentRow[] = useMemo(
-    () => getFlaggedDocuments(dataset, anomalyMap),
-    [dataset, anomalyMap]
-  );
+  const salesforceFlags: FlagRecord[] = useMemo(() => {
+    const flags: FlagRecord[] = [];
+    for (const sheetName of Object.keys(flagMap)) {
+      for (const rowIdx of Object.keys(flagMap[sheetName])) {
+        const rowFlags = flagMap[sheetName][Number(rowIdx)];
+        for (const flag of rowFlags) {
+          if (isFlagRoutedToSalesforce(flag.category)) {
+            flags.push(flag);
+          }
+        }
+      }
+    }
+    return flags.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [flagMap]);
 
   return (
     <div className="space-y-6">
@@ -300,12 +325,12 @@ export function SalesforceVerifierDashboard({
             </div>
           </div>
         </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
           <div className="flex items-center gap-3">
-            <FileX className="w-5 h-5 text-blue-600" />
+            <Flag className="w-5 h-5 text-teal-600" />
             <div>
-              <div className="text-2xl font-semibold text-blue-800">{flaggedDocs.length}</div>
-              <div className="text-sm text-blue-700">Flagged Documents</div>
+              <div className="text-2xl font-semibold text-teal-800">{salesforceFlags.length}</div>
+              <div className="text-sm text-teal-700">Salesforce Flags</div>
             </div>
           </div>
         </div>
@@ -327,14 +352,14 @@ export function SalesforceVerifierDashboard({
       <div className="bg-white border rounded-lg">
         <div className="border-b px-4 py-3 flex items-center justify-between">
           <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-            <FileX className="w-4 h-4 text-blue-500" />
-            Flagged Documents (Not Applicable)
+            <Flag className="w-4 h-4 text-teal-500" />
+            Flags (Salesforce)
           </h3>
           <span className="text-sm text-gray-500">
-            {flaggedDocs.length} document{flaggedDocs.length !== 1 ? 's' : ''}
+            {salesforceFlags.length} flag{salesforceFlags.length !== 1 ? 's' : ''}
           </span>
         </div>
-        <FlaggedDocumentsTable rows={flaggedDocs} onOpenRow={onOpenRow} />
+        <SalesforceFlagsTable flags={salesforceFlags} onOpenRow={onOpenRow} />
       </div>
     </div>
   );

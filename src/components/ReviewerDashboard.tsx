@@ -15,6 +15,7 @@ import {
   FieldStatus,
   HingesConfig,
   ReviewerTab,
+  FlagMap,
 } from '../types';
 import { QAReviewerDashboard } from './QAReviewerDashboard';
 import { SalesforceVerifierDashboard } from './SalesforceVerifierDashboard';
@@ -26,6 +27,7 @@ interface ReviewerDashboardProps {
   rfiComments: RfiComments;
   fieldStatuses: FieldStatus;
   hingesConfig: HingesConfig;
+  flagMap: FlagMap;
   activeSheetName: string;
   onOpenRow: (sheetName: string, rowIndex: number) => void;
   onHingesConfigChange: (config: HingesConfig) => void;
@@ -38,6 +40,7 @@ export function ReviewerDashboard({
   rfiComments,
   fieldStatuses,
   hingesConfig,
+  flagMap,
   activeSheetName,
   onOpenRow,
   onHingesConfigChange,
@@ -202,6 +205,7 @@ export function ReviewerDashboard({
               rfiComments={rfiComments}
               fieldStatuses={fieldStatuses}
               hingesConfig={hingesConfig}
+              flagMap={flagMap}
               activeSheetName={activeSheetName}
               onOpenRow={(sheetName, rowIndex) => {
                 onOpenRow(sheetName, rowIndex);
@@ -214,6 +218,7 @@ export function ReviewerDashboard({
               anomalyMap={anomalyMap}
               rfiComments={rfiComments}
               fieldStatuses={fieldStatuses}
+              flagMap={flagMap}
               onOpenRow={(sheetName, rowIndex) => {
                 onOpenRow(sheetName, rowIndex);
                 onClose();

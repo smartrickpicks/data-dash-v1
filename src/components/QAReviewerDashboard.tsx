@@ -9,6 +9,9 @@ import {
   CheckCircle2,
   HelpCircle,
   Lightbulb,
+  Flag,
+  Info,
+  Star,
 } from 'lucide-react';
 import {
   Dataset,
@@ -17,6 +20,10 @@ import {
   FieldStatus,
   HingesConfig,
   ManualReviewRow,
+  FlagMap,
+  FlagRecord,
+  FLAG_CATEGORY_LABELS,
+  isFlagRoutedToQA,
 } from '../types';
 import {
   getAnomalyCounts,
@@ -35,6 +42,7 @@ interface QAReviewerDashboardProps {
   rfiComments: RfiComments;
   fieldStatuses: FieldStatus;
   hingesConfig: HingesConfig;
+  flagMap: FlagMap;
   activeSheetName: string;
   onOpenRow: (sheetName: string, rowIndex: number) => void;
 }
@@ -156,6 +164,121 @@ function ManualReviewTable({
   );
 }
 
+function FlagsTable({
+  flags,
+  onOpenRow,
+}: {
+  flags: FlagRecord[];
+  onOpenRow: (sheetName: string, rowIndex: number) => void;
+}) {
+  if (flags.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        <Flag className="w-12 h-12 mx-auto mb-3 opacity-50" />
+        <p className="font-medium">No QA flags</p>
+        <p className="text-sm">Flags for extraction, data management, and other issues appear here</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b bg-gray-50">
+            <th className="text-left p-3 font-medium text-gray-700">Sheet</th>
+            <th className="text-left p-3 font-medium text-gray-700">Row</th>
+            <th className="text-left p-3 font-medium text-gray-700">Category</th>
+            <th className="text-left p-3 font-medium text-gray-700">Reason</th>
+            <th className="text-left p-3 font-medium text-gray-700">Severity</th>
+            <th className="text-left p-3 font-medium text-gray-700">Comment</th>
+            <th className="text-right p-3 font-medium text-gray-700">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {flags.map((flag, i) => (
+            <tr key={flag.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+              <td className="p-3 font-medium">{flag.sheetName}</td>
+              <td className="p-3">{flag.rowIndex + 1}</td>
+              <td className="p-3">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                  flag.category === 'extraction' ? 'bg-blue-100 text-blue-700' :
+                  flag.category === 'data_mgmt' ? 'bg-orange-100 text-orange-700' :
+                  'bg-slate-100 text-slate-700'
+                }`}>
+                  {FLAG_CATEGORY_LABELS[flag.category]}
+                </span>
+              </td>
+              <td className="p-3 text-gray-600 text-xs max-w-xs truncate" title={flag.reason || ''}>
+                {flag.reason || '-'}
+              </td>
+              <td className="p-3">
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                  flag.severity === 'blocking' ? 'bg-red-100 text-red-700' :
+                  flag.severity === 'warning' ? 'bg-amber-100 text-amber-700' :
+                  'bg-blue-100 text-blue-700'
+                }`}>
+                  {flag.severity === 'blocking' && <AlertCircle className="w-3 h-3" />}
+                  {flag.severity === 'warning' && <AlertTriangle className="w-3 h-3" />}
+                  {flag.severity === 'info' && <Info className="w-3 h-3" />}
+                  {flag.severity.charAt(0).toUpperCase() + flag.severity.slice(1)}
+                </span>
+              </td>
+              <td className="p-3 text-gray-600 text-xs max-w-xs truncate" title={flag.comment || ''}>
+                {flag.comment || '-'}
+              </td>
+              <td className="p-3 text-right">
+                <button
+                  onClick={() => onOpenRow(flag.sheetName, flag.rowIndex)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  Open Row
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function HingePatternLegend() {
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+      <h4 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
+        <Star className="w-4 h-4 text-amber-500" />
+        Hinge Pattern Legend
+      </h4>
+      <div className="space-y-2">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
+            PRIMARY
+          </span>
+          <span className="text-xs text-slate-600">Drives required/expected fields. Critical for record completeness.</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
+            SECONDARY
+          </span>
+          <span className="text-xs text-slate-600">Conditional or dependent fields. Triggered by primary field values.</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+            TERTIARY
+          </span>
+          <span className="text-xs text-slate-600">Informational rules. Low impact on data validation.</span>
+        </div>
+        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-200">
+          <span className="inline-flex items-center text-red-600 text-xs font-bold">*</span>
+          <span className="text-xs text-slate-600">Required - Missing value should trigger attention and review.</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HingesInsightPanel({
   hingesConfig,
   activeSheetName,
@@ -220,21 +343,28 @@ function HingesInsightPanel({
                 </tr>
               </thead>
               <tbody>
-                {hingeFields.map((field, i) => (
-                  <tr key={field.primaryField} className={i % 2 === 0 ? '' : 'bg-gray-50'}>
-                    <td className="p-2 font-medium">{field.primaryField}</td>
-                    <td className="p-2">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        field.hingeLevel === 'primary' ? 'bg-red-100 text-red-700' :
-                        field.hingeLevel === 'secondary' ? 'bg-amber-100 text-amber-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {field.hingeLevel || 'tertiary'}
-                      </span>
-                    </td>
-                    <td className="p-2 text-gray-600 text-xs">{field.description || field.whyItHinges}</td>
-                  </tr>
-                ))}
+                {hingeFields.map((field, i) => {
+                  const level = field.hingeLevel || 'tertiary';
+                  const isRequired = level === 'primary';
+                  return (
+                    <tr key={field.primaryField} className={i % 2 === 0 ? '' : 'bg-gray-50'}>
+                      <td className="p-2 font-medium">
+                        {field.primaryField}
+                        {isRequired && <span className="text-red-600 ml-1">*</span>}
+                      </td>
+                      <td className="p-2">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          level === 'primary' ? 'bg-red-100 text-red-700 font-bold' :
+                          level === 'secondary' ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {level.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="p-2 text-gray-600 text-xs">{field.description || field.whyItHinges}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -319,6 +449,7 @@ export function QAReviewerDashboard({
   rfiComments,
   fieldStatuses,
   hingesConfig,
+  flagMap,
   activeSheetName,
   onOpenRow,
 }: QAReviewerDashboardProps) {
@@ -332,11 +463,26 @@ export function QAReviewerDashboard({
     [dataset, anomalyMap]
   );
 
+  const qaFlags: FlagRecord[] = useMemo(() => {
+    const flags: FlagRecord[] = [];
+    for (const sheetName of Object.keys(flagMap)) {
+      for (const rowIdx of Object.keys(flagMap[sheetName])) {
+        const rowFlags = flagMap[sheetName][Number(rowIdx)];
+        for (const flag of rowFlags) {
+          if (isFlagRoutedToQA(flag.category)) {
+            flags.push(flag);
+          }
+        }
+      }
+    }
+    return flags.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [flagMap]);
+
   return (
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Anomaly Summary</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
           <StatCard
             icon={FileX}
             label="PDF Load Errors"
@@ -368,6 +514,12 @@ export function QAReviewerDashboard({
             color="bg-purple-50 border-purple-200 text-purple-800"
           />
           <StatCard
+            icon={Flag}
+            label="QA Flags"
+            value={qaFlags.length}
+            color="bg-teal-50 border-teal-200 text-teal-800"
+          />
+          <StatCard
             icon={HelpCircle}
             label="Total RFIs"
             value={counts.totalRfis}
@@ -377,7 +529,7 @@ export function QAReviewerDashboard({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           <div className="bg-white border rounded-lg">
             <div className="border-b px-4 py-3 flex items-center justify-between">
               <h3 className="font-semibold text-gray-800">Manual Review Queue</h3>
@@ -387,9 +539,24 @@ export function QAReviewerDashboard({
             </div>
             <ManualReviewTable rows={manualReviewRows} onOpenRow={onOpenRow} />
           </div>
+
+          <div className="bg-white border rounded-lg">
+            <div className="border-b px-4 py-3 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                <Flag className="w-4 h-4 text-teal-600" />
+                Flags (QA)
+              </h3>
+              <span className="text-sm text-gray-500">
+                {qaFlags.length} flag{qaFlags.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <FlagsTable flags={qaFlags} onOpenRow={onOpenRow} />
+          </div>
         </div>
 
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 space-y-4">
+          <HingePatternLegend />
+
           <div className="bg-white border rounded-lg">
             <div className="border-b px-4 py-3">
               <h3 className="font-semibold text-gray-800">Rules & Hinges Insight</h3>

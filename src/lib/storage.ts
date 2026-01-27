@@ -1,4 +1,4 @@
-import { Dataset, RowStatus, FieldStatus, RfiComments, MultiSheetGlossaryConfig, MultiSheetGlossary, ModificationHistory, AnalystRemarks, AnomalyMap, BlacklistEntry, DriveProjectMeta, ContractFailureOverrides, RowReviewStatusMap } from '../types';
+import { Dataset, RowStatus, FieldStatus, RfiComments, MultiSheetGlossaryConfig, MultiSheetGlossary, ModificationHistory, AnalystRemarks, AnomalyMap, BlacklistEntry, DriveProjectMeta, ContractFailureOverrides, RowReviewStatusMap, FlagMap } from '../types';
 
 const DB_NAME = 'ContractReviewerDB';
 const DB_VERSION = 4;
@@ -18,6 +18,7 @@ export interface StoredProject {
   anomalyMap: AnomalyMap;
   contractFailureOverrides: ContractFailureOverrides;
   rowReviewStatuses: RowReviewStatusMap;
+  flagMap: FlagMap;
   activeSheetName: string;
   currentRowIndex: number;
   viewMode: 'single' | 'grid';
@@ -144,6 +145,7 @@ class StorageService {
       anomalyMap,
       contractFailureOverrides: {},
       rowReviewStatuses: {},
+      flagMap: {},
       activeSheetName: dataset.sheets[0]?.name || '',
       currentRowIndex: 0,
       viewMode: 'single',

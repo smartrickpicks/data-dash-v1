@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { AlertCircle, Check, AlertTriangle, MessageSquare, Trash2, X, Edit3, Zap, XCircle, HelpCircle, Shield } from 'lucide-react';
-import { Dataset, FieldStatus, FieldStatusType, NormalizedGlossary, GlossaryEntry, RfiComments, ChangeMap, ModificationHistory, AnomalyMap, FieldViewMode, Anomaly } from '../types';
+import { AlertCircle, Check, AlertTriangle, MessageSquare, Trash2, X, Edit3, Zap, XCircle, HelpCircle, Shield, Lightbulb, Eye, EyeOff } from 'lucide-react';
+import { Dataset, FieldStatus, FieldStatusType, NormalizedGlossary, GlossaryEntry, RfiComments, ChangeMap, ModificationHistory, AnomalyMap, FieldViewMode, Anomaly, HingesConfig, HingeField } from '../types';
 import { formatFieldName } from '../utils/formatFieldName';
 import { matchFieldToGlossary, isValueEmpty, isValueInAllowedList, isNumericValue, shouldShowDropdown, filterAllowedValues } from '../utils/glossary';
 import { GlossaryPopover } from './GlossaryPopover';
@@ -10,6 +10,7 @@ import { AttentionSummary } from './AttentionSummary';
 import { normalizeNAForDisplay } from '../utils/naNormalization';
 import { getFieldAnomalies } from '../utils/anomalyDetection';
 import { getFieldAttention } from '../utils/attentionLogic';
+import { getHingeFieldsForSheet } from '../config/hingesConfig';
 
 interface FieldsEditorProps {
   dataset: Dataset;
@@ -27,6 +28,7 @@ interface FieldsEditorProps {
   viewMode: FieldViewMode;
   onViewModeChange: (mode: FieldViewMode) => void;
   onQuickAddToBlacklist?: (value: string) => void;
+  hingesConfig?: HingesConfig;
 }
 
 interface FieldAttentionInfo {
@@ -55,11 +57,27 @@ export function FieldsEditor({
   viewMode,
   onViewModeChange,
   onQuickAddToBlacklist,
+  hingesConfig,
 }: FieldsEditorProps) {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [editingRfiField, setEditingRfiField] = useState<string | null>(null);
   const [rfiInputValue, setRfiInputValue] = useState('');
+  const [showHingeHints, setShowHingeHints] = useState(false);
   const activeSheet = dataset.sheets.find((s) => s.name === activeSheetName);
+
+  const hingeFieldsMap = useMemo(() => {
+    if (!hingesConfig) return {};
+    const hingeFields = getHingeFieldsForSheet(hingesConfig, activeSheetName);
+    const map: Record<string, HingeField> = {};
+    for (const field of hingeFields) {
+      map[field.primaryField.toLowerCase()] = field;
+    }
+    return map;
+  }, [hingesConfig, activeSheetName]);
+
+  const getHingeInfo = (fieldName: string): HingeField | null => {
+    return hingeFieldsMap[fieldName.toLowerCase()] || null;
+  };
 
   const glossaryMatches = useMemo(() => {
     if (!activeSheet) return {};
@@ -215,13 +233,30 @@ export function FieldsEditor({
   return (
     <div className="bg-white h-full overflow-auto">
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-3">
-        <AttentionSummary
-          rfiCount={rowCounts.rfiCount}
-          attentionCount={rowCounts.attentionCount}
-          anomalyCount={rowCounts.anomalyCount}
-          viewMode={viewMode}
-          onViewModeChange={onViewModeChange}
-        />
+        <div className="flex items-center justify-between gap-2">
+          <AttentionSummary
+            rfiCount={rowCounts.rfiCount}
+            attentionCount={rowCounts.attentionCount}
+            anomalyCount={rowCounts.anomalyCount}
+            viewMode={viewMode}
+            onViewModeChange={onViewModeChange}
+          />
+          {Object.keys(hingeFieldsMap).length > 0 && (
+            <button
+              onClick={() => setShowHingeHints(!showHingeHints)}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-all ${
+                showHingeHints
+                  ? 'bg-amber-100 text-amber-700 border border-amber-300'
+                  : 'bg-slate-100 text-slate-600 hover:bg-amber-50 hover:text-amber-600'
+              }`}
+              title={showHingeHints ? 'Hide hinge hints' : 'Show hinge hints'}
+            >
+              {showHingeHints ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+              <Lightbulb className="w-3 h-3" />
+              Hinges
+            </button>
+          )}
+        </div>
 
         {filteredHeaders.length === 0 ? (
           <div className="text-center py-12">
@@ -250,6 +285,7 @@ export function FieldsEditor({
             const isRfiActive = fieldStatus === 'rfi';
             const isFieldLocked = isRfiActive && !isEditingRfi;
             const attentionInfo = fieldAttentionMap[header];
+            const hingeInfo = getHingeInfo(header);
 
             const fieldEmpty = isValueEmpty(value);
             const allowedValues = glossaryEntry?.allowed_values || [];
@@ -266,8 +302,24 @@ export function FieldsEditor({
             const fieldColor = getColorForField(header, index);
             const hasValue = !fieldEmpty && String(value).trim().length >= 2;
 
+            const hingeLevel = hingeInfo?.hingeLevel || 'tertiary';
+            const isHingeHighlighted = showHingeHints && hingeInfo;
+            const isPrimary = hingeLevel === 'primary';
+            const isSecondary = hingeLevel === 'secondary';
+
             return (
-              <div key={header} className="border-b border-slate-200 pb-3 last:border-b-0">
+              <div
+                key={header}
+                className={`border-b border-slate-200 pb-3 last:border-b-0 transition-all ${
+                  isHingeHighlighted
+                    ? isPrimary
+                      ? 'bg-red-50 border-l-4 border-l-red-400 pl-3 -ml-3 rounded-r'
+                      : isSecondary
+                      ? 'bg-amber-50 border-l-4 border-l-amber-400 pl-3 -ml-3 rounded-r'
+                      : 'bg-gray-50 border-l-4 border-l-gray-300 pl-3 -ml-3 rounded-r'
+                    : ''
+                }`}
+              >
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <label
                     className="flex items-center gap-1.5 text-sm font-semibold text-slate-900 min-w-0 flex-1"
@@ -281,6 +333,10 @@ export function FieldsEditor({
                       />
                     )}
                     <span className="truncate">{displayLabel}</span>
+                    {isPrimary && <span className="text-red-600 font-bold">*</span>}
+                    {hingeInfo && (
+                      <HingeBadge level={hingeLevel} description={hingeInfo.description || hingeInfo.whyItHinges} />
+                    )}
                     {modification && <ModificationTooltip modification={modification} />}
                     {!modification && hasChanged && (
                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded-full flex-shrink-0">
@@ -509,6 +565,27 @@ function AttentionBadges({ info }: { info: FieldAttentionInfo }) {
           Edited
         </span>
       )}
+    </span>
+  );
+}
+
+function HingeBadge({ level, description }: { level: string; description?: string }) {
+  const isPrimary = level === 'primary';
+  const isSecondary = level === 'secondary';
+
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${
+        isPrimary
+          ? 'bg-red-100 text-red-700 border border-red-200 font-bold'
+          : isSecondary
+          ? 'bg-amber-100 text-amber-700 border border-amber-200'
+          : 'bg-gray-100 text-gray-600 border border-gray-200'
+      }`}
+      title={description || `${level} hinge field`}
+    >
+      <Lightbulb className="w-2.5 h-2.5" />
+      {isPrimary ? 'PRIMARY' : isSecondary ? 'SECONDARY' : 'HINGE'}
     </span>
   );
 }

@@ -518,3 +518,74 @@ export interface FlaggedDocumentRow {
 }
 
 export type ReviewerTab = 'qa-reviewer' | 'salesforce-verifier';
+
+export type FlagCategory = 'extraction' | 'salesforce' | 'data_mgmt' | 'other';
+
+export type FlagSeverity = 'info' | 'warning' | 'blocking';
+
+export const FLAG_REASONS: Record<FlagCategory, string[]> = {
+  extraction: [
+    'PDF didn\'t read / unreadable layer',
+    'Right data, wrong value',
+    'Right data, wrong destination (mapped to wrong column/field)',
+    'Legend/highlight mismatch (0 hits / unexpected 0s)',
+    'Formatting/standardization issue',
+    'Other extraction issue',
+  ],
+  salesforce: [
+    'Record type/subtype rule conflict',
+    'Entity mismatch (label vs artist)',
+    'Missing required Salesforce context',
+    'Wrong Salesforce destination',
+    'Needs Salesforce source-of-truth check',
+    'Other Salesforce issue',
+  ],
+  data_mgmt: [
+    'Wrong document type in this dataset',
+    'Duplicate document',
+    'Not in scope',
+    'Wrong sheet / wrong section',
+    'Column mismatch / schema drift',
+    'Other data mgmt issue',
+  ],
+  other: [
+    'Feature request',
+    'UX issue',
+    'Documentation request',
+    'Other',
+  ],
+};
+
+export const FLAG_CATEGORY_LABELS: Record<FlagCategory, string> = {
+  extraction: 'Extraction issue',
+  salesforce: 'Salesforce / Business logic',
+  data_mgmt: 'Data management',
+  other: 'Other / Suggestion',
+};
+
+export interface FlagRecord {
+  id: string;
+  sheetName: string;
+  rowIndex: number;
+  fileUrl?: string;
+  category: FlagCategory;
+  reason: string | null;
+  comment: string | null;
+  severity: FlagSeverity;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface FlagMap {
+  [sheetName: string]: {
+    [rowIndex: number]: FlagRecord[];
+  };
+}
+
+export function isFlagRoutedToQA(category: FlagCategory): boolean {
+  return category === 'extraction' || category === 'data_mgmt' || category === 'other';
+}
+
+export function isFlagRoutedToSalesforce(category: FlagCategory): boolean {
+  return category === 'salesforce';
+}

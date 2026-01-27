@@ -57,11 +57,21 @@ import {
   NotApplicableReasonKey,
   NotApplicableMeta,
   HingesConfig,
+  FlagMap,
+  FlagCategory,
+  FlagSeverity,
 } from './types';
 import { deriveRowReviewReason } from './utils/rowReviewLogic';
 import { buildRfiComment } from './utils/contractFailureClassifier';
 import { computeExtractionSuspectAnomaly } from './utils/extractionAnomalyDetection';
-import { DocumentNotApplicableModal } from './components/DocumentNotApplicableModal';
+import { FlagModal } from './components/FlagModal';
+import {
+  createFlag,
+  addFlag,
+  removeFlag,
+  clearFlagsForRow,
+  migrateContractNotApplicableToFlags,
+} from './utils/flagUtils';
 import { Upload, BookOpen } from 'lucide-react';
 import { storage } from './lib/storage';
 import { QuickActionBar } from './components/QuickActionBar';
@@ -121,8 +131,9 @@ function App() {
   const [queueView, setQueueView] = useState<QueueView>('todo');
   const [activeQueueFilter, setActiveQueueFilter] = useState<FilterType>(null);
   const [undoStack, setUndoStack] = useState<FinalizedAction[]>([]);
-  const [isNotApplicableModalOpen, setIsNotApplicableModalOpen] = useState(false);
+  const [isFlagModalOpen, setIsFlagModalOpen] = useState(false);
   const [showReviewerDashboard, setShowReviewerDashboard] = useState(false);
+  const [flagMap, setFlagMap] = useState<FlagMap>({});
   const [hingesConfig, setHingesConfig] = useState<HingesConfig>(() => loadHingesConfig());
 
   const isDesktop = useIsDesktop();
@@ -164,6 +175,12 @@ function App() {
             entries: project.glossaryEntries || {},
             config: project.glossaryConfig,
           });
+
+          let loadedFlags = project.flagMap || {};
+          if (Object.keys(loadedFlags).length === 0 && project.anomalyMap) {
+            loadedFlags = migrateContractNotApplicableToFlags(project.anomalyMap);
+          }
+          setFlagMap(loadedFlags);
         }
       } catch (err) {
         console.error('Failed to load project:', err);
@@ -270,6 +287,7 @@ function App() {
             glossaryConfig: glossaryState.config,
             glossaryEntries: glossaryState.entries,
             driveMeta,
+            flagMap,
           });
         } catch (err) {
           console.error('Failed to save project:', err);
@@ -279,7 +297,7 @@ function App() {
 
     const timeoutId = setTimeout(saveProject, 500);
     return () => clearTimeout(timeoutId);
-  }, [currentProjectId, appState, rfiComments, modificationHistory, analystRemarks, anomalyMap, contractFailureOverrides, glossaryState, driveMeta]);
+  }, [currentProjectId, appState, rfiComments, modificationHistory, analystRemarks, anomalyMap, contractFailureOverrides, glossaryState, driveMeta, flagMap]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1071,49 +1089,78 @@ function App() {
     });
   }, [appState.dataset, appState.activeSheetName, appState.currentRowIndex]);
 
-  const handleFlagNotApplicable = useCallback((reasonKey: NotApplicableReasonKey, freeText: string) => {
+  const handleAddFlag = useCallback((
+    category: FlagCategory,
+    reason: string | null,
+    comment: string | null,
+    severity: FlagSeverity
+  ) => {
     const sheet = appState.dataset?.sheets.find((s) => s.name === appState.activeSheetName);
     if (!sheet) return;
 
-    const contractField = sheet.headers[1];
-    if (!contractField) return;
+    const contractUrl = String(sheet.rows[appState.currentRowIndex]?.[sheet.headers[1]] || '');
 
-    const meta: NotApplicableMeta = {
-      decision: 'not_applicable',
-      confidence: 'manual',
-      reasonKey,
-      freeText: freeText || undefined,
-      timestampISO: new Date().toISOString(),
-    };
+    const flag = createFlag(
+      appState.activeSheetName,
+      appState.currentRowIndex,
+      category,
+      reason,
+      comment,
+      severity,
+      contractUrl
+    );
 
-    const notApplicableAnomaly: Anomaly = {
-      type: 'contract_not_applicable',
-      severity: 'warn',
-      message: `Document flagged as not applicable: ${reasonKey}${freeText ? ` - ${freeText}` : ''}`,
-      notApplicableMeta: meta,
-    };
+    setFlagMap((prev) => addFlag(prev, flag));
 
-    setAnomalyMap((prev) => {
-      const newMap = { ...prev };
-      if (!newMap[appState.activeSheetName]) {
-        newMap[appState.activeSheetName] = {};
+    if (category === 'data_mgmt' && (reason === 'Wrong document type in this dataset' || reason === 'Not in scope')) {
+      const contractField = sheet.headers[1];
+      if (contractField) {
+        const meta: NotApplicableMeta = {
+          decision: 'not_applicable',
+          confidence: 'manual',
+          reasonKey: reason === 'Wrong document type in this dataset' ? 'wrong_doc_type' : 'not_in_scope',
+          freeText: comment || undefined,
+          timestampISO: new Date().toISOString(),
+        };
+
+        const notApplicableAnomaly: Anomaly = {
+          type: 'contract_not_applicable',
+          severity: 'warn',
+          message: `Document flagged: ${reason}${comment ? ` - ${comment}` : ''}`,
+          notApplicableMeta: meta,
+        };
+
+        setAnomalyMap((prev) => {
+          const newMap = { ...prev };
+          if (!newMap[appState.activeSheetName]) {
+            newMap[appState.activeSheetName] = {};
+          }
+          if (!newMap[appState.activeSheetName][appState.currentRowIndex]) {
+            newMap[appState.activeSheetName][appState.currentRowIndex] = {};
+          }
+
+          const existingAnomalies = newMap[appState.activeSheetName][appState.currentRowIndex][contractField] || [];
+          const filteredAnomalies = existingAnomalies.filter((a) => a.type !== 'contract_not_applicable');
+          newMap[appState.activeSheetName][appState.currentRowIndex][contractField] = [
+            ...filteredAnomalies,
+            notApplicableAnomaly,
+          ];
+
+          return newMap;
+        });
       }
-      if (!newMap[appState.activeSheetName][appState.currentRowIndex]) {
-        newMap[appState.activeSheetName][appState.currentRowIndex] = {};
-      }
+    }
 
-      const existingAnomalies = newMap[appState.activeSheetName][appState.currentRowIndex][contractField] || [];
-      const filteredAnomalies = existingAnomalies.filter((a) => a.type !== 'contract_not_applicable');
-      newMap[appState.activeSheetName][appState.currentRowIndex][contractField] = [
-        ...filteredAnomalies,
-        notApplicableAnomaly,
-      ];
-
-      return newMap;
-    });
-
-    setIsNotApplicableModalOpen(false);
+    setIsFlagModalOpen(false);
   }, [appState.dataset, appState.activeSheetName, appState.currentRowIndex]);
+
+  const handleClearFlags = useCallback(() => {
+    setFlagMap((prev) => clearFlagsForRow(prev, appState.activeSheetName, appState.currentRowIndex));
+  }, [appState.activeSheetName, appState.currentRowIndex]);
+
+  const handleRemoveFlag = useCallback((flagId: string) => {
+    setFlagMap((prev) => removeFlag(prev, appState.activeSheetName, appState.currentRowIndex, flagId));
+  }, [appState.activeSheetName, appState.currentRowIndex]);
 
   const handleClearSession = useCallback(async () => {
     if (window.confirm('Clear all progress and start over?')) {
@@ -1138,6 +1185,7 @@ function App() {
         setAnomalyMap({});
         setContractFailureOverrides({});
         setFieldViewMode('all');
+        setFlagMap({});
         setGlossaryState({
           entries: {},
           config: null,
@@ -1250,8 +1298,8 @@ function App() {
           onOpenBlacklistManager={handleOpenBlacklistManager}
           onOpenReviewerDashboard={() => setShowReviewerDashboard(true)}
           glossaryLoaded={!!glossaryState.config}
-          canFlagNotApplicable={appState.viewMode === 'single'}
-          onFlagNotApplicable={() => setIsNotApplicableModalOpen(true)}
+          canFlag={appState.viewMode === 'single'}
+          onFlag={() => setIsFlagModalOpen(true)}
         />
 
         {appState.viewMode === 'single' && (
@@ -1289,6 +1337,7 @@ function App() {
                     viewMode={fieldViewMode}
                     onViewModeChange={handleFieldViewModeChange}
                     onQuickAddToBlacklist={handleQuickAddToBlacklist}
+                    hingesConfig={hingesConfig}
                   />
                 }
                 rightPanel={
@@ -1330,6 +1379,7 @@ function App() {
                   viewMode={fieldViewMode}
                   onViewModeChange={handleFieldViewModeChange}
                   onQuickAddToBlacklist={handleQuickAddToBlacklist}
+                  hingesConfig={hingesConfig}
                 />
               </div>
             )}
@@ -1439,11 +1489,13 @@ function App() {
         prefillValue={blacklistQuickAddValue}
       />
 
-      <DocumentNotApplicableModal
-        isOpen={isNotApplicableModalOpen}
-        onClose={() => setIsNotApplicableModalOpen(false)}
-        onConfirm={handleFlagNotApplicable}
+      <FlagModal
+        isOpen={isFlagModalOpen}
+        onClose={() => setIsFlagModalOpen(false)}
+        onConfirm={handleAddFlag}
         fileName={activeSheet?.rows[appState.currentRowIndex]?.[activeSheet.headers[1]] as string | undefined}
+        sheetName={appState.activeSheetName}
+        rowIndex={appState.currentRowIndex}
       />
 
       {showReviewerDashboard && (
@@ -1453,6 +1505,7 @@ function App() {
           rfiComments={rfiComments}
           fieldStatuses={appState.fieldStatuses}
           hingesConfig={hingesConfig}
+          flagMap={flagMap}
           activeSheetName={appState.activeSheetName}
           onOpenRow={(sheetName, rowIndex) => {
             setAppState((prev) => ({
