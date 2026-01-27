@@ -35,6 +35,8 @@ import {
   getParentChildSeedsForSheet,
   getOpenKnowledgeKeepers,
 } from '../config/hingesConfig';
+import { buildHingeGroupsForSheet } from '../utils/hingeGroups';
+import { getGroupColorClasses } from '../config/defaultHingeGroups';
 
 interface QAReviewerDashboardProps {
   dataset: Dataset | null;
@@ -245,13 +247,23 @@ function FlagsTable({
 }
 
 function HingePatternLegend() {
+  const groupCategories = [
+    { id: 'terms', label: 'Contract Terms', description: 'Agreement types, record types, subtypes' },
+    { id: 'parties', label: 'Parties & Entities', description: 'Labels, artists, signatories' },
+    { id: 'payment', label: 'Payment & Royalties', description: 'Rates, advances, financial terms' },
+    { id: 'territory', label: 'Territory & Scope', description: 'Geographic regions, exclusivity' },
+    { id: 'duration', label: 'Duration & Dates', description: 'Term periods, renewals, expiration' },
+  ];
+
   return (
     <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
       <h4 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
         <Star className="w-4 h-4 text-amber-500" />
         Hinge Pattern Legend
       </h4>
-      <div className="space-y-2">
+
+      <div className="space-y-2 mb-4">
+        <p className="text-xs text-slate-500 mb-2">Field Levels:</p>
         <div className="flex items-center gap-3">
           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
             PRIMARY
@@ -270,9 +282,24 @@ function HingePatternLegend() {
           </span>
           <span className="text-xs text-slate-600">Informational rules. Low impact on data validation.</span>
         </div>
-        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-200">
+        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-slate-200">
           <span className="inline-flex items-center text-red-600 text-xs font-bold">*</span>
           <span className="text-xs text-slate-600">Required - Missing value should trigger attention and review.</span>
+        </div>
+      </div>
+
+      <div className="border-t border-slate-200 pt-3 mt-3">
+        <p className="text-xs text-slate-500 mb-2">Concept Groups:</p>
+        <div className="grid grid-cols-1 gap-1.5">
+          {groupCategories.map((cat) => {
+            const colors = getGroupColorClasses(cat.id);
+            return (
+              <div key={cat.id} className={`flex items-center gap-2 px-2 py-1 rounded ${colors.bg} ${colors.border} border`}>
+                <span className={`text-xs font-semibold ${colors.text}`}>{cat.label}</span>
+                <span className="text-[10px] text-slate-500 truncate">{cat.description}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -288,6 +315,11 @@ function HingesInsightPanel({
 }) {
   const hingeFields = useMemo(
     () => getHingeFieldsForSheet(hingesConfig, activeSheetName),
+    [hingesConfig, activeSheetName]
+  );
+
+  const hingeGroups = useMemo(
+    () => buildHingeGroupsForSheet(hingesConfig, activeSheetName),
     [hingesConfig, activeSheetName]
   );
 
@@ -327,7 +359,62 @@ function HingesInsightPanel({
 
   return (
     <div className="space-y-4">
-      {hingeFields.length > 0 && (
+      {hingeGroups.length > 0 && (
+        <div>
+          <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+            <Lightbulb className="w-4 h-4 text-amber-500" />
+            Hinge Groups ({activeSheetName})
+          </h4>
+          <div className="space-y-3">
+            {hingeGroups.map((group) => {
+              const colorClasses = getGroupColorClasses(group.group_id);
+              const totalFields = group.primary_fields.length + group.secondary_fields.length + group.tertiary_fields.length;
+              return (
+                <div key={group.group_id} className={`border rounded-lg overflow-hidden ${colorClasses.border}`}>
+                  <div className={`px-3 py-2 ${colorClasses.headerBg} flex items-center justify-between`}>
+                    <div className="flex items-center gap-2">
+                      <Lightbulb className={`w-4 h-4 ${colorClasses.text}`} />
+                      <span className={`font-semibold text-sm ${colorClasses.text}`}>{group.group_label}</span>
+                    </div>
+                    <span className="text-xs text-slate-500">{totalFields} field{totalFields !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className={`px-3 py-2 ${colorClasses.bg}`}>
+                    <p className="text-xs text-slate-600 mb-2">{group.group_description}</p>
+                    <div className="space-y-1">
+                      {group.primary_fields.length > 0 && (
+                        <div className="flex items-start gap-2">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 flex-shrink-0">
+                            PRIMARY
+                          </span>
+                          <span className="text-xs text-slate-700">{group.primary_fields.join(', ')}</span>
+                        </div>
+                      )}
+                      {group.secondary_fields.length > 0 && (
+                        <div className="flex items-start gap-2">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 flex-shrink-0">
+                            SECONDARY
+                          </span>
+                          <span className="text-xs text-slate-600">{group.secondary_fields.join(', ')}</span>
+                        </div>
+                      )}
+                      {group.tertiary_fields.length > 0 && (
+                        <div className="flex items-start gap-2">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 flex-shrink-0">
+                            TERTIARY
+                          </span>
+                          <span className="text-xs text-slate-500">{group.tertiary_fields.join(', ')}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {hingeGroups.length === 0 && hingeFields.length > 0 && (
         <div>
           <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
             <Lightbulb className="w-4 h-4 text-amber-500" />

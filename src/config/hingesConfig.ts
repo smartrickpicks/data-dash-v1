@@ -10,6 +10,7 @@ import {
   RequirednessLevel,
   KnowledgeKeeperStatus,
   HingeSeverity,
+  HingeGroup,
 } from '../types';
 import { createEmptyHingesConfig } from './defaultHingesConfig';
 
@@ -206,6 +207,37 @@ function parseKnowledgeKeepers(sheet: XLSX.WorkSheet): KnowledgeKeeper[] {
   }).filter(e => e.question);
 }
 
+function parseHingeGroups(sheet: XLSX.WorkSheet): HingeGroup[] {
+  const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+  if (data.length === 0) return [];
+
+  const headers = Object.keys(data[0]);
+  const groupIdIdx = findColumnIndex(headers, 'group_id', 'groupid', 'id');
+  const groupLabelIdx = findColumnIndex(headers, 'group_label', 'grouplabel', 'label', 'name');
+  const groupDescIdx = findColumnIndex(headers, 'group_description', 'groupdescription', 'description', 'desc');
+  const sheetIdx = findColumnIndex(headers, 'sheet', 'agreement_sheet', 'agreementsheet');
+  const primaryFieldsIdx = findColumnIndex(headers, 'primary_fields', 'primaryfields', 'primary');
+  const secondaryFieldsIdx = findColumnIndex(headers, 'secondary_fields', 'secondaryfields', 'secondary');
+  const tertiaryFieldsIdx = findColumnIndex(headers, 'tertiary_fields', 'tertiaryfields', 'tertiary');
+  const impactScopeIdx = findColumnIndex(headers, 'impact_scope', 'impactscope', 'scope');
+  const severityIdx = findColumnIndex(headers, 'severity_default', 'severitydefault', 'severity');
+
+  return data.map(row => {
+    const values = Object.values(row);
+    return {
+      group_id: groupIdIdx >= 0 ? normalizeString(values[groupIdIdx]) : '',
+      group_label: groupLabelIdx >= 0 ? normalizeString(values[groupLabelIdx]) : '',
+      group_description: groupDescIdx >= 0 ? normalizeString(values[groupDescIdx]) : '',
+      sheet: sheetIdx >= 0 ? normalizeSheetName(normalizeString(values[sheetIdx])) : undefined,
+      primary_fields: primaryFieldsIdx >= 0 ? parseAliases(values[primaryFieldsIdx]) : [],
+      secondary_fields: secondaryFieldsIdx >= 0 ? parseAliases(values[secondaryFieldsIdx]) : [],
+      tertiary_fields: tertiaryFieldsIdx >= 0 ? parseAliases(values[tertiaryFieldsIdx]) : [],
+      impact_scope: impactScopeIdx >= 0 ? parseAliases(values[impactScopeIdx]) : [],
+      severity_default: severityIdx >= 0 ? parseHingeSeverity(values[severityIdx]) : 'info',
+    };
+  }).filter(e => e.group_id && e.group_label);
+}
+
 function findSheet(workbook: XLSX.WorkBook, ...candidates: string[]): XLSX.WorkSheet | null {
   const sheetNames = workbook.SheetNames.map(n => n.toLowerCase().replace(/[_\s-]/g, ''));
   for (const candidate of candidates) {
@@ -247,6 +279,11 @@ export function parseHingesWorkbook(workbook: XLSX.WorkBook): HingesConfig {
       config.knowledgeKeepers = parseKnowledgeKeepers(knowledgeKeepersSheet);
     }
 
+    const hingeGroupsSheet = findSheet(workbook, 'Hinge_Groups', 'HingeGroups', 'Groups');
+    if (hingeGroupsSheet) {
+      config.hingeGroups = parseHingeGroups(hingeGroupsSheet);
+    }
+
     config.loadedAt = new Date().toISOString();
   } catch (err) {
     config.error = err instanceof Error ? err.message : 'Unknown error parsing hinges config';
@@ -264,6 +301,7 @@ export function loadHingesConfigFromJSON(json: string | object): HingesConfig {
       hingeFields: Array.isArray(parsed.hingeFields) ? parsed.hingeFields : [],
       parentChildSeeds: Array.isArray(parsed.parentChildSeeds) ? parsed.parentChildSeeds : [],
       knowledgeKeepers: Array.isArray(parsed.knowledgeKeepers) ? parsed.knowledgeKeepers : [],
+      hingeGroups: Array.isArray(parsed.hingeGroups) ? parsed.hingeGroups : [],
       loadedAt: new Date().toISOString(),
     };
     saveHingesConfig(config);
@@ -374,6 +412,20 @@ function migrateHingesConfig(config: Record<string, unknown>): HingesConfig {
 
   if (Array.isArray(config.knowledgeKeepers)) {
     migrated.knowledgeKeepers = config.knowledgeKeepers as KnowledgeKeeper[];
+  }
+
+  if (Array.isArray(config.hingeGroups)) {
+    migrated.hingeGroups = config.hingeGroups.map((entry: Record<string, unknown>) => ({
+      group_id: String(entry.group_id || ''),
+      group_label: String(entry.group_label || ''),
+      group_description: String(entry.group_description || ''),
+      sheet: entry.sheet ? String(entry.sheet) : undefined,
+      primary_fields: Array.isArray(entry.primary_fields) ? entry.primary_fields : [],
+      secondary_fields: Array.isArray(entry.secondary_fields) ? entry.secondary_fields : [],
+      tertiary_fields: Array.isArray(entry.tertiary_fields) ? entry.tertiary_fields : [],
+      impact_scope: Array.isArray(entry.impact_scope) ? entry.impact_scope : [],
+      severity_default: (entry.severity_default as 'info' | 'warning' | 'blocking') || 'info',
+    }));
   }
 
   migrated.loadedAt = String(config.loadedAt || new Date().toISOString());

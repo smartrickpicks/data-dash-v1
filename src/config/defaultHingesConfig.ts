@@ -1,4 +1,4 @@
-import type { HingesConfig, HingeField, ParentChildSeed, KnowledgeKeeper, BuildOrderEntry, SheetAlias } from '../types';
+import type { HingesConfig, HingeField, ParentChildSeed, KnowledgeKeeper, BuildOrderEntry, SheetAlias, HingeGroup } from '../types';
 
 export const DEFAULT_HINGE_FIELDS: HingeField[] = [];
 
@@ -10,6 +10,8 @@ export const DEFAULT_BUILD_ORDER: BuildOrderEntry[] = [];
 
 export const DEFAULT_SHEET_ALIASES: SheetAlias[] = [];
 
+export const DEFAULT_HINGE_GROUPS: HingeGroup[] = [];
+
 export function createEmptyHingesConfig(): HingesConfig {
   return {
     buildOrder: DEFAULT_BUILD_ORDER,
@@ -17,6 +19,7 @@ export function createEmptyHingesConfig(): HingesConfig {
     hingeFields: DEFAULT_HINGE_FIELDS,
     parentChildSeeds: DEFAULT_PARENT_CHILD_SEEDS,
     knowledgeKeepers: DEFAULT_KNOWLEDGE_KEEPERS,
+    hingeGroups: DEFAULT_HINGE_GROUPS,
     loadedAt: '',
   };
 }

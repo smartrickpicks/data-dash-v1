@@ -479,8 +479,32 @@ export interface HingesConfig {
   hingeFields: HingeField[];
   parentChildSeeds: ParentChildSeed[];
   knowledgeKeepers: KnowledgeKeeper[];
+  hingeGroups?: HingeGroup[];
   loadedAt: string;
   error?: string;
+}
+
+export type HingeGroupId = 'terms' | 'parties' | 'payment' | 'territory' | 'duration' | 'other';
+
+export const HINGE_GROUP_IDS: HingeGroupId[] = ['terms', 'parties', 'payment', 'territory', 'duration', 'other'];
+
+export interface HingeGroup {
+  group_id: HingeGroupId | string;
+  group_label: string;
+  group_description: string;
+  sheet?: string;
+  primary_fields: string[];
+  secondary_fields: string[];
+  tertiary_fields: string[];
+  impact_scope?: string[];
+  severity_default: HingeSeverity;
+}
+
+export interface BuiltHingeGroup extends HingeGroup {
+  primaryHingeFields: HingeField[];
+  secondaryHingeFields: HingeField[];
+  tertiaryHingeFields: HingeField[];
+  allFieldNames: string[];
 }
 
 export interface ManualReviewRow {
