@@ -333,11 +333,63 @@ export function saveHingesConfig(config: HingesConfig): void {
   }
 }
 
+function migrateHingesConfig(config: Record<string, unknown>): HingesConfig {
+  const migrated = createEmptyHingesConfig();
+
+  if (Array.isArray(config.buildOrder)) {
+    migrated.buildOrder = config.buildOrder.map((entry: Record<string, unknown>) => ({
+      buildOrder: Number(entry.buildOrder) || 0,
+      agreementSheet: String(entry.agreementSheet || entry.stereoSheet || ''),
+      why: String(entry.why || ''),
+      outputs: String(entry.outputs || ''),
+      aliases: Array.isArray(entry.aliases) ? entry.aliases : [],
+    }));
+  }
+
+  if (Array.isArray(config.sheetAliases)) {
+    migrated.sheetAliases = config.sheetAliases.map((entry: Record<string, unknown>) => ({
+      agreementSheet: String(entry.agreementSheet || entry.stereoSheet || ''),
+      akaTerm: String(entry.akaTerm || ''),
+      notes: String(entry.notes || ''),
+    }));
+  }
+
+  if (Array.isArray(config.hingeFields)) {
+    migrated.hingeFields = config.hingeFields.map((entry: Record<string, unknown>) => ({
+      sheet: String(entry.sheet || entry.stereoSheet || ''),
+      primaryField: String(entry.primaryField || entry.fieldKey || ''),
+      affectedFields: Array.isArray(entry.affectedFields) ? entry.affectedFields :
+                      Array.isArray(entry.downstreamChildGroups) ? entry.downstreamChildGroups : [],
+      severity: (entry.severity as 'info' | 'warning' | 'blocking') || 'info',
+      description: String(entry.description || entry.whyItHinges || ''),
+      hingeLevel: (entry.hingeLevel as 'primary' | 'secondary' | 'tertiary') || 'tertiary',
+      whyItHinges: String(entry.whyItHinges || entry.description || ''),
+      downstreamChildGroups: Array.isArray(entry.downstreamChildGroups) ? entry.downstreamChildGroups : [],
+    }));
+  }
+
+  if (Array.isArray(config.parentChildSeeds)) {
+    migrated.parentChildSeeds = config.parentChildSeeds as ParentChildSeed[];
+  }
+
+  if (Array.isArray(config.knowledgeKeepers)) {
+    migrated.knowledgeKeepers = config.knowledgeKeepers as KnowledgeKeeper[];
+  }
+
+  migrated.loadedAt = String(config.loadedAt || new Date().toISOString());
+  if (config.error) {
+    migrated.error = String(config.error);
+  }
+
+  return migrated;
+}
+
 export function loadHingesConfig(): HingesConfig {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored) as HingesConfig;
+      const parsed = JSON.parse(stored);
+      return migrateHingesConfig(parsed);
     }
   } catch {
     console.warn('Failed to load hinges config from localStorage');

@@ -112,7 +112,7 @@ export function ReviewerDashboard({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.json"
               onChange={handleHingesFileChange}
               className="hidden"
               id="hinges-file-input"
