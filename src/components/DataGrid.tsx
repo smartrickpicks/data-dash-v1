@@ -362,13 +362,18 @@ export function DataGrid({
             {displayRows.map((row) => {
               const attention = row._attention;
               const needsAttention = attention?.needsAttention;
+              const isNotApplicable = attention?.notApplicableCount > 0;
+
+              const getRowBackgroundClass = () => {
+                if (isNotApplicable) return 'bg-orange-100/50';
+                if (needsAttention) return 'bg-rose-50/30';
+                return '';
+              };
 
               return (
                 <tr
                   key={row._originalIndex}
-                  className={`border-b border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors ${
-                    needsAttention ? 'bg-rose-50/30' : ''
-                  }`}
+                  className={`border-b border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors ${getRowBackgroundClass()}`}
                   onClick={() => onRowSelect(row._originalIndex)}
                 >
                   <td className="px-4 py-3 text-slate-500 text-xs font-mono">

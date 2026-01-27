@@ -9,20 +9,11 @@ import {
   HingeLevel,
   RequirednessLevel,
   KnowledgeKeeperStatus,
+  HingeSeverity,
 } from '../types';
+import { createEmptyHingesConfig } from './defaultHingesConfig';
 
 const STORAGE_KEY = 'hinges_config';
-
-function createEmptyConfig(): HingesConfig {
-  return {
-    buildOrder: [],
-    sheetAliases: [],
-    hingeFields: [],
-    parentChildSeeds: [],
-    knowledgeKeepers: [],
-    loadedAt: new Date().toISOString(),
-  };
-}
 
 function normalizeString(val: unknown): string {
   if (val === null || val === undefined) return '';
@@ -34,6 +25,13 @@ function parseHingeLevel(val: unknown): HingeLevel {
   if (str === 'primary' || str === '1' || str === 'p') return 'primary';
   if (str === 'secondary' || str === '2' || str === 's') return 'secondary';
   return 'tertiary';
+}
+
+function parseHingeSeverity(val: unknown): HingeSeverity {
+  const str = normalizeString(val).toLowerCase();
+  if (str === 'blocking' || str === 'block' || str === 'error') return 'blocking';
+  if (str === 'warning' || str === 'warn') return 'warning';
+  return 'info';
 }
 
 function parseRequiredness(val: unknown): RequirednessLevel {
@@ -67,6 +65,14 @@ function parseDownstreamGroups(val: unknown): string[] {
   return parseAliases(val);
 }
 
+function normalizeSheetName(name: string): string {
+  const normalized = name.toLowerCase().replace(/[_\s-]/g, '');
+  if (normalized === 'stereosheet' || normalized === 'stereo') {
+    return 'agreement_sheet';
+  }
+  return name;
+}
+
 function findColumnIndex(headers: string[], ...candidates: string[]): number {
   const normalized = headers.map(h => h.toLowerCase().replace(/[_\s-]/g, ''));
   for (const candidate of candidates) {
@@ -83,21 +89,22 @@ function parseAppBuildOrder(sheet: XLSX.WorkSheet): BuildOrderEntry[] {
 
   const headers = Object.keys(data[0]);
   const buildOrderIdx = findColumnIndex(headers, 'build_order', 'buildorder', 'order');
-  const stereoSheetIdx = findColumnIndex(headers, 'stereo_sheet', 'stereosheet', 'sheet');
+  const sheetIdx = findColumnIndex(headers, 'agreement_sheet', 'agreementsheet', 'stereo_sheet', 'stereosheet', 'sheet');
   const whyIdx = findColumnIndex(headers, 'why', 'reason', 'description');
   const outputsIdx = findColumnIndex(headers, 'outputs', 'output');
   const aliasesIdx = findColumnIndex(headers, 'aliases', 'alias', 'aka');
 
   return data.map((row, i) => {
     const values = Object.values(row);
+    const rawSheet = sheetIdx >= 0 ? normalizeString(values[sheetIdx]) : '';
     return {
       buildOrder: buildOrderIdx >= 0 ? Number(values[buildOrderIdx]) || (i + 1) : (i + 1),
-      stereoSheet: stereoSheetIdx >= 0 ? normalizeString(values[stereoSheetIdx]) : '',
+      agreementSheet: normalizeSheetName(rawSheet),
       why: whyIdx >= 0 ? normalizeString(values[whyIdx]) : '',
       outputs: outputsIdx >= 0 ? normalizeString(values[outputsIdx]) : '',
       aliases: aliasesIdx >= 0 ? parseAliases(values[aliasesIdx]) : [],
     };
-  }).filter(e => e.stereoSheet);
+  }).filter(e => e.agreementSheet);
 }
 
 function parseSheetAliases(sheet: XLSX.WorkSheet): SheetAlias[] {
@@ -105,18 +112,19 @@ function parseSheetAliases(sheet: XLSX.WorkSheet): SheetAlias[] {
   if (data.length === 0) return [];
 
   const headers = Object.keys(data[0]);
-  const stereoSheetIdx = findColumnIndex(headers, 'stereo_sheet', 'stereosheet', 'sheet');
+  const sheetIdx = findColumnIndex(headers, 'agreement_sheet', 'agreementsheet', 'stereo_sheet', 'stereosheet', 'sheet');
   const akaTermIdx = findColumnIndex(headers, 'aka_term', 'akaterm', 'aka', 'alias');
   const notesIdx = findColumnIndex(headers, 'notes', 'note', 'comment');
 
   return data.map(row => {
     const values = Object.values(row);
+    const rawSheet = sheetIdx >= 0 ? normalizeString(values[sheetIdx]) : '';
     return {
-      stereoSheet: stereoSheetIdx >= 0 ? normalizeString(values[stereoSheetIdx]) : '',
+      agreementSheet: normalizeSheetName(rawSheet),
       akaTerm: akaTermIdx >= 0 ? normalizeString(values[akaTermIdx]) : '',
       notes: notesIdx >= 0 ? normalizeString(values[notesIdx]) : '',
     };
-  }).filter(e => e.stereoSheet && e.akaTerm);
+  }).filter(e => e.agreementSheet && e.akaTerm);
 }
 
 function parseHingeFields(sheet: XLSX.WorkSheet): HingeField[] {
@@ -124,22 +132,28 @@ function parseHingeFields(sheet: XLSX.WorkSheet): HingeField[] {
   if (data.length === 0) return [];
 
   const headers = Object.keys(data[0]);
-  const stereoSheetIdx = findColumnIndex(headers, 'stereo_sheet', 'stereosheet', 'sheet');
-  const fieldKeyIdx = findColumnIndex(headers, 'field_key', 'fieldkey', 'field');
+  const sheetIdx = findColumnIndex(headers, 'agreement_sheet', 'agreementsheet', 'stereo_sheet', 'stereosheet', 'sheet');
+  const fieldKeyIdx = findColumnIndex(headers, 'primary_field', 'primaryfield', 'field_key', 'fieldkey', 'field');
   const hingeLevelIdx = findColumnIndex(headers, 'hinge_level', 'hingelevel', 'level');
-  const whyIdx = findColumnIndex(headers, 'why_it_hinges', 'whyithinges', 'why');
-  const downstreamIdx = findColumnIndex(headers, 'downstream_child_groups', 'downstreamchildgroups', 'downstream', 'children');
+  const severityIdx = findColumnIndex(headers, 'severity');
+  const descriptionIdx = findColumnIndex(headers, 'description', 'why_it_hinges', 'whyithinges', 'why');
+  const affectedIdx = findColumnIndex(headers, 'affected_fields', 'affectedfields', 'downstream_child_groups', 'downstreamchildgroups', 'downstream', 'children');
 
   return data.map(row => {
     const values = Object.values(row);
+    const rawSheet = sheetIdx >= 0 ? normalizeString(values[sheetIdx]) : '';
+    const description = descriptionIdx >= 0 ? normalizeString(values[descriptionIdx]) : '';
     return {
-      stereoSheet: stereoSheetIdx >= 0 ? normalizeString(values[stereoSheetIdx]) : '',
-      fieldKey: fieldKeyIdx >= 0 ? normalizeString(values[fieldKeyIdx]) : '',
+      sheet: normalizeSheetName(rawSheet),
+      primaryField: fieldKeyIdx >= 0 ? normalizeString(values[fieldKeyIdx]) : '',
+      affectedFields: affectedIdx >= 0 ? parseDownstreamGroups(values[affectedIdx]) : [],
+      severity: severityIdx >= 0 ? parseHingeSeverity(values[severityIdx]) : 'info',
+      description: description,
       hingeLevel: hingeLevelIdx >= 0 ? parseHingeLevel(values[hingeLevelIdx]) : 'tertiary',
-      whyItHinges: whyIdx >= 0 ? normalizeString(values[whyIdx]) : '',
-      downstreamChildGroups: downstreamIdx >= 0 ? parseDownstreamGroups(values[downstreamIdx]) : [],
+      whyItHinges: description,
+      downstreamChildGroups: affectedIdx >= 0 ? parseDownstreamGroups(values[affectedIdx]) : [],
     };
-  }).filter(e => e.stereoSheet && e.fieldKey);
+  }).filter(e => e.sheet && e.primaryField);
 }
 
 function parseParentChildSeeds(sheet: XLSX.WorkSheet): ParentChildSeed[] {
@@ -205,7 +219,7 @@ function findSheet(workbook: XLSX.WorkBook, ...candidates: string[]): XLSX.WorkS
 }
 
 export function parseHingesWorkbook(workbook: XLSX.WorkBook): HingesConfig {
-  const config = createEmptyConfig();
+  const config = createEmptyHingesConfig();
 
   try {
     const buildOrderSheet = findSheet(workbook, 'App_Build_Order', 'BuildOrder', 'Build_Order');
@@ -241,7 +255,52 @@ export function parseHingesWorkbook(workbook: XLSX.WorkBook): HingesConfig {
   return config;
 }
 
+export function loadHingesConfigFromJSON(json: string | object): HingesConfig {
+  try {
+    const parsed = typeof json === 'string' ? JSON.parse(json) : json;
+    const config: HingesConfig = {
+      buildOrder: Array.isArray(parsed.buildOrder) ? parsed.buildOrder : [],
+      sheetAliases: Array.isArray(parsed.sheetAliases) ? parsed.sheetAliases : [],
+      hingeFields: Array.isArray(parsed.hingeFields) ? parsed.hingeFields : [],
+      parentChildSeeds: Array.isArray(parsed.parentChildSeeds) ? parsed.parentChildSeeds : [],
+      knowledgeKeepers: Array.isArray(parsed.knowledgeKeepers) ? parsed.knowledgeKeepers : [],
+      loadedAt: new Date().toISOString(),
+    };
+    saveHingesConfig(config);
+    return config;
+  } catch (err) {
+    const config = createEmptyHingesConfig();
+    config.error = err instanceof Error ? err.message : 'Failed to parse JSON hinges config';
+    return config;
+  }
+}
+
 export async function loadHingesConfigFromFile(file: File): Promise<HingesConfig> {
+  const fileName = file.name.toLowerCase();
+
+  if (fileName.endsWith('.json')) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target?.result as string;
+          const config = loadHingesConfigFromJSON(text);
+          resolve(config);
+        } catch (err) {
+          const config = createEmptyHingesConfig();
+          config.error = err instanceof Error ? err.message : 'Failed to parse JSON hinges file';
+          resolve(config);
+        }
+      };
+      reader.onerror = () => {
+        const config = createEmptyHingesConfig();
+        config.error = 'Failed to read JSON hinges file';
+        resolve(config);
+      };
+      reader.readAsText(file);
+    });
+  }
+
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -252,13 +311,13 @@ export async function loadHingesConfigFromFile(file: File): Promise<HingesConfig
         saveHingesConfig(config);
         resolve(config);
       } catch (err) {
-        const config = createEmptyConfig();
+        const config = createEmptyHingesConfig();
         config.error = err instanceof Error ? err.message : 'Failed to parse hinges file';
         resolve(config);
       }
     };
     reader.onerror = () => {
-      const config = createEmptyConfig();
+      const config = createEmptyHingesConfig();
       config.error = 'Failed to read hinges file';
       resolve(config);
     };
@@ -283,7 +342,7 @@ export function loadHingesConfig(): HingesConfig {
   } catch {
     console.warn('Failed to load hinges config from localStorage');
   }
-  return createEmptyConfig();
+  return createEmptyHingesConfig();
 }
 
 export function clearHingesConfig(): void {
@@ -294,30 +353,33 @@ export function clearHingesConfig(): void {
   }
 }
 
+function normalizeForComparison(str: string): string {
+  return str.toLowerCase().replace(/[_\s-]/g, '');
+}
+
 export function getSheetBuildOrder(config: HingesConfig, sheetName: string): number {
-  const normalized = sheetName.toLowerCase().replace(/[_\s-]/g, '');
+  const normalized = normalizeForComparison(sheetName);
 
   const directMatch = config.buildOrder.find(
-    e => e.stereoSheet.toLowerCase().replace(/[_\s-]/g, '') === normalized
+    e => normalizeForComparison(e.agreementSheet) === normalized
   );
   if (directMatch) return directMatch.buildOrder;
 
   for (const entry of config.buildOrder) {
     const aliasMatch = entry.aliases.some(
-      a => a.toLowerCase().replace(/[_\s-]/g, '') === normalized
+      a => normalizeForComparison(a) === normalized
     );
     if (aliasMatch) return entry.buildOrder;
   }
 
   const aliasEntry = config.sheetAliases.find(
-    a => a.akaTerm.toLowerCase().replace(/[_\s-]/g, '') === normalized
+    a => normalizeForComparison(a.akaTerm) === normalized
   );
   if (aliasEntry) {
-    const stereoMatch = config.buildOrder.find(
-      e => e.stereoSheet.toLowerCase().replace(/[_\s-]/g, '') ===
-           aliasEntry.stereoSheet.toLowerCase().replace(/[_\s-]/g, '')
+    const match = config.buildOrder.find(
+      e => normalizeForComparison(e.agreementSheet) === normalizeForComparison(aliasEntry.agreementSheet)
     );
-    if (stereoMatch) return stereoMatch.buildOrder;
+    if (match) return match.buildOrder;
   }
 
   return 9999;
@@ -333,17 +395,17 @@ export function sortSheetsByBuildOrder(config: HingesConfig, sheetNames: string[
 }
 
 export function getHingeFieldsForSheet(config: HingesConfig, sheetName: string): HingeField[] {
-  const normalized = sheetName.toLowerCase().replace(/[_\s-]/g, '');
+  const normalized = normalizeForComparison(sheetName);
   return config.hingeFields.filter(
-    f => f.stereoSheet.toLowerCase().replace(/[_\s-]/g, '') === normalized
+    f => normalizeForComparison(f.sheet) === normalized
   );
 }
 
 export function getParentChildSeedsForSheet(config: HingesConfig, sheetName: string): ParentChildSeed[] {
-  const normalized = sheetName.toLowerCase().replace(/[_\s-]/g, '');
+  const normalized = normalizeForComparison(sheetName);
   return config.parentChildSeeds.filter(
-    s => s.parent.toLowerCase().replace(/[_\s-]/g, '') === normalized ||
-         s.child.toLowerCase().replace(/[_\s-]/g, '') === normalized
+    s => normalizeForComparison(s.parent) === normalized ||
+         normalizeForComparison(s.child) === normalized
   );
 }
 
@@ -352,32 +414,32 @@ export function getOpenKnowledgeKeepers(config: HingesConfig): KnowledgeKeeper[]
 }
 
 export function getSheetDescription(config: HingesConfig, sheetName: string): string | null {
-  const normalized = sheetName.toLowerCase().replace(/[_\s-]/g, '');
+  const normalized = normalizeForComparison(sheetName);
   const entry = config.buildOrder.find(
-    e => e.stereoSheet.toLowerCase().replace(/[_\s-]/g, '') === normalized
+    e => normalizeForComparison(e.agreementSheet) === normalized
   );
   return entry?.why || null;
 }
 
 export function resolveSheetAlias(config: HingesConfig, searchTerm: string): string | null {
-  const normalized = searchTerm.toLowerCase().replace(/[_\s-]/g, '');
+  const normalized = normalizeForComparison(searchTerm);
 
   const directMatch = config.buildOrder.find(
-    e => e.stereoSheet.toLowerCase().replace(/[_\s-]/g, '') === normalized
+    e => normalizeForComparison(e.agreementSheet) === normalized
   );
-  if (directMatch) return directMatch.stereoSheet;
+  if (directMatch) return directMatch.agreementSheet;
 
   for (const entry of config.buildOrder) {
     const aliasMatch = entry.aliases.some(
-      a => a.toLowerCase().replace(/[_\s-]/g, '') === normalized
+      a => normalizeForComparison(a) === normalized
     );
-    if (aliasMatch) return entry.stereoSheet;
+    if (aliasMatch) return entry.agreementSheet;
   }
 
   const aliasEntry = config.sheetAliases.find(
-    a => a.akaTerm.toLowerCase().replace(/[_\s-]/g, '') === normalized
+    a => normalizeForComparison(a.akaTerm) === normalized
   );
-  if (aliasEntry) return aliasEntry.stereoSheet;
+  if (aliasEntry) return aliasEntry.agreementSheet;
 
   return null;
 }

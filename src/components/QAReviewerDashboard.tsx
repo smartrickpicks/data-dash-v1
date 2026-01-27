@@ -221,18 +221,18 @@ function HingesInsightPanel({
               </thead>
               <tbody>
                 {hingeFields.map((field, i) => (
-                  <tr key={field.fieldKey} className={i % 2 === 0 ? '' : 'bg-gray-50'}>
-                    <td className="p-2 font-medium">{field.fieldKey}</td>
+                  <tr key={field.primaryField} className={i % 2 === 0 ? '' : 'bg-gray-50'}>
+                    <td className="p-2 font-medium">{field.primaryField}</td>
                     <td className="p-2">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                         field.hingeLevel === 'primary' ? 'bg-red-100 text-red-700' :
                         field.hingeLevel === 'secondary' ? 'bg-amber-100 text-amber-700' :
                         'bg-gray-100 text-gray-700'
                       }`}>
-                        {field.hingeLevel}
+                        {field.hingeLevel || 'tertiary'}
                       </span>
                     </td>
-                    <td className="p-2 text-gray-600 text-xs">{field.whyItHinges}</td>
+                    <td className="p-2 text-gray-600 text-xs">{field.description || field.whyItHinges}</td>
                   </tr>
                 ))}
               </tbody>
@@ -283,21 +283,24 @@ function HingesInsightPanel({
       {openKnowledgeKeepers.length > 0 && (
         <div>
           <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-500" />
+            <HelpCircle className="w-4 h-4 text-blue-500" />
             Rules Missing / Needs Decision ({openKnowledgeKeepers.length})
           </h4>
+          <p className="text-xs text-gray-500 mb-2">
+            These items highlight undefined logic or pending decisions. They are informational only and do not block exports.
+          </p>
           <div className="space-y-2">
             {openKnowledgeKeepers.map((keeper) => (
-              <div key={keeper.blockerId} className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div key={keeper.blockerId} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
                 <div className="flex items-start gap-2">
-                  <HelpCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <HelpCircle className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-red-800">{keeper.question}</p>
+                    <p className="text-sm font-medium text-slate-700">{keeper.question}</p>
                     {keeper.sheetsFields && (
-                      <p className="text-xs text-red-600 mt-1">Affects: {keeper.sheetsFields}</p>
+                      <p className="text-xs text-slate-500 mt-1">Affects: {keeper.sheetsFields}</p>
                     )}
                     {keeper.owner && (
-                      <p className="text-xs text-red-600">Owner: {keeper.owner}</p>
+                      <p className="text-xs text-slate-500">Owner: {keeper.owner}</p>
                     )}
                   </div>
                 </div>

@@ -402,28 +402,53 @@ export interface QueueState {
   undoStack: FinalizedAction[];
 }
 
+export type HingeSheetType =
+  | 'agreement_sheet'
+  | 'accounts'
+  | 'opportunity'
+  | 'financials'
+  | 'catalog'
+  | 'schedule'
+  | 'schedule_catalog'
+  | 'contacts'
+  | 'v2_add_ons';
+
+export type HingeSeverity = 'info' | 'warning' | 'blocking';
+
 export interface BuildOrderEntry {
   buildOrder: number;
-  stereoSheet: string;
+  agreementSheet: string;
   why: string;
   outputs: string;
   aliases: string[];
 }
 
 export interface SheetAlias {
-  stereoSheet: string;
+  agreementSheet: string;
   akaTerm: string;
   notes: string;
 }
 
 export type HingeLevel = 'primary' | 'secondary' | 'tertiary';
 
+export type HingeConditionType = 'presence' | 'value';
+
+export interface HingeCondition {
+  type: HingeConditionType;
+  value?: string;
+  operator?: 'equals' | 'not_equals' | 'contains' | 'not_empty';
+}
+
 export interface HingeField {
-  stereoSheet: string;
-  fieldKey: string;
-  hingeLevel: HingeLevel;
-  whyItHinges: string;
-  downstreamChildGroups: string[];
+  sheet: HingeSheetType | string;
+  primaryField: string;
+  condition?: HingeCondition;
+  affectedFields: string[];
+  severity: HingeSeverity;
+  description: string;
+  hingeLevel?: HingeLevel;
+  whyItHinges?: string;
+  downstreamChildGroups?: string[];
 }
 
 export type RequirednessLevel = 'required' | 'conditional' | 'optional';
