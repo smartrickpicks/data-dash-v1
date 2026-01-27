@@ -9,6 +9,7 @@ import { SplitView } from './components/SplitView';
 import { DataGrid } from './components/DataGrid';
 import { GlossaryWizard } from './components/GlossaryWizard';
 import { BlacklistManager } from './components/BlacklistManager';
+import { ReviewerDashboard } from './components/ReviewerDashboard';
 import { parseGlossaryXLSX, parseFileWithNormalization, parseBlob } from './utils/fileParser';
 import { getGlossaryForSheet } from './utils/glossary';
 import { generateChangeMap } from './utils/changeDetection';
@@ -55,6 +56,7 @@ import {
   FinalizedAction,
   NotApplicableReasonKey,
   NotApplicableMeta,
+  HingesConfig,
 } from './types';
 import { deriveRowReviewReason } from './utils/rowReviewLogic';
 import { buildRfiComment } from './utils/contractFailureClassifier';
@@ -65,6 +67,7 @@ import { storage } from './lib/storage';
 import { QuickActionBar } from './components/QuickActionBar';
 import { FilterType } from './components/GridSummaryBar';
 import { FinalizedToast } from './components/FinalizedToast';
+import { loadHingesConfig } from './config/hingesConfig';
 
 interface GlossaryState {
   entries: MultiSheetGlossary;
@@ -119,6 +122,8 @@ function App() {
   const [activeQueueFilter, setActiveQueueFilter] = useState<FilterType>(null);
   const [undoStack, setUndoStack] = useState<FinalizedAction[]>([]);
   const [isNotApplicableModalOpen, setIsNotApplicableModalOpen] = useState(false);
+  const [showReviewerDashboard, setShowReviewerDashboard] = useState(false);
+  const [hingesConfig, setHingesConfig] = useState<HingesConfig>(() => loadHingesConfig());
 
   const isDesktop = useIsDesktop();
   const { accessToken, user } = useGoogleAuth();
@@ -1243,6 +1248,7 @@ function App() {
         <QuickActionBar
           onGlossaryUpload={handleGlossaryUpload}
           onOpenBlacklistManager={handleOpenBlacklistManager}
+          onOpenReviewerDashboard={() => setShowReviewerDashboard(true)}
           glossaryLoaded={!!glossaryState.config}
           canFlagNotApplicable={appState.viewMode === 'single'}
           onFlagNotApplicable={() => setIsNotApplicableModalOpen(true)}
@@ -1439,6 +1445,27 @@ function App() {
         onConfirm={handleFlagNotApplicable}
         fileName={activeSheet?.rows[appState.currentRowIndex]?.[activeSheet.headers[1]] as string | undefined}
       />
+
+      {showReviewerDashboard && (
+        <ReviewerDashboard
+          dataset={appState.dataset}
+          anomalyMap={anomalyMap}
+          rfiComments={rfiComments}
+          fieldStatuses={appState.fieldStatuses}
+          hingesConfig={hingesConfig}
+          activeSheetName={appState.activeSheetName}
+          onOpenRow={(sheetName, rowIndex) => {
+            setAppState((prev) => ({
+              ...prev,
+              activeSheetName: sheetName,
+              currentRowIndex: rowIndex,
+              viewMode: 'single',
+            }));
+          }}
+          onHingesConfigChange={setHingesConfig}
+          onClose={() => setShowReviewerDashboard(false)}
+        />
+      )}
     </div>
   );
 }

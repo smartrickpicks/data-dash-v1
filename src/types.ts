@@ -401,3 +401,95 @@ export interface QueueState {
   view: QueueView;
   undoStack: FinalizedAction[];
 }
+
+export interface BuildOrderEntry {
+  buildOrder: number;
+  stereoSheet: string;
+  why: string;
+  outputs: string;
+  aliases: string[];
+}
+
+export interface SheetAlias {
+  stereoSheet: string;
+  akaTerm: string;
+  notes: string;
+}
+
+export type HingeLevel = 'primary' | 'secondary' | 'tertiary';
+
+export interface HingeField {
+  stereoSheet: string;
+  fieldKey: string;
+  hingeLevel: HingeLevel;
+  whyItHinges: string;
+  downstreamChildGroups: string[];
+}
+
+export type RequirednessLevel = 'required' | 'conditional' | 'optional';
+
+export interface ParentChildSeed {
+  parent: string;
+  trigger: string;
+  child: string;
+  requiredness: RequirednessLevel;
+  notes: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export type KnowledgeKeeperStatus = 'open' | 'resolved' | 'deferred';
+
+export interface KnowledgeKeeper {
+  blockerId: string;
+  question: string;
+  sheetsFields: string;
+  whyNeeded: string;
+  status: KnowledgeKeeperStatus;
+  owner: string;
+}
+
+export interface HingesConfig {
+  buildOrder: BuildOrderEntry[];
+  sheetAliases: SheetAlias[];
+  hingeFields: HingeField[];
+  parentChildSeeds: ParentChildSeed[];
+  knowledgeKeepers: KnowledgeKeeper[];
+  loadedAt: string;
+  error?: string;
+}
+
+export interface ManualReviewRow {
+  sheetName: string;
+  rowIndex: number;
+  contractUrl: string;
+  contractFileName: string;
+  reasons: ManualReviewReason[];
+  priority: 'high' | 'medium' | 'low';
+}
+
+export interface ManualReviewReason {
+  type: AnomalyType;
+  message: string;
+  confidence?: string;
+  detectedAt?: string;
+}
+
+export interface RfiCommentRow {
+  sheetName: string;
+  rowIndex: number;
+  fieldName: string;
+  comment: string;
+  severity: 'rfi' | 'comment';
+}
+
+export interface FlaggedDocumentRow {
+  sheetName: string;
+  rowIndex: number;
+  contractUrl: string;
+  contractFileName: string;
+  reasonKey: NotApplicableReasonKey;
+  freeText: string;
+  flaggedAt: string;
+}
+
+export type ReviewerTab = 'qa-reviewer' | 'salesforce-verifier';

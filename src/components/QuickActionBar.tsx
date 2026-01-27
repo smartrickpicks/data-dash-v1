@@ -1,8 +1,9 @@
-import { BookOpen, Shield, FileX } from 'lucide-react';
+import { BookOpen, Shield, FileX, ClipboardCheck } from 'lucide-react';
 
 interface QuickActionBarProps {
   onGlossaryUpload: (file: File) => void;
   onOpenBlacklistManager: () => void;
+  onOpenReviewerDashboard: () => void;
   glossaryLoaded: boolean;
   canFlagNotApplicable?: boolean;
   onFlagNotApplicable?: () => void;
@@ -11,6 +12,7 @@ interface QuickActionBarProps {
 export function QuickActionBar({
   onGlossaryUpload,
   onOpenBlacklistManager,
+  onOpenReviewerDashboard,
   glossaryLoaded,
   canFlagNotApplicable = false,
   onFlagNotApplicable,
@@ -39,6 +41,14 @@ export function QuickActionBar({
         >
           <Shield className="w-4 h-4" />
           <span>Blacklist</span>
+        </button>
+
+        <button
+          onClick={onOpenReviewerDashboard}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded text-sm transition-colors"
+        >
+          <ClipboardCheck className="w-4 h-4" />
+          <span>Review Dashboard</span>
         </button>
 
         {canFlagNotApplicable && onFlagNotApplicable && (
