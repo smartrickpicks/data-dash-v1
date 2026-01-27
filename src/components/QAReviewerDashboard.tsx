@@ -24,6 +24,7 @@ import {
   FlagRecord,
   FLAG_CATEGORY_LABELS,
   isFlagRoutedToQA,
+  RfiCommentEntry,
 } from '../types';
 import {
   getAnomalyCounts,
@@ -42,11 +43,14 @@ interface QAReviewerDashboardProps {
   dataset: Dataset | null;
   anomalyMap: AnomalyMap;
   rfiComments: RfiComments;
+  rfiEntriesV2: RfiCommentEntry[];
   fieldStatuses: FieldStatus;
   hingesConfig: HingesConfig;
   flagMap: FlagMap;
   activeSheetName: string;
   onOpenRow: (sheetName: string, rowIndex: number) => void;
+  onUpdateRfiEntry: (entryId: string, updates: Partial<RfiCommentEntry>) => void;
+  onFieldChange: (sheetName: string, rowIndex: number, fieldName: string, value: string) => void;
 }
 
 const ANOMALY_TYPE_LABELS: Record<string, string> = {
@@ -259,7 +263,7 @@ function HingePatternLegend() {
     <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
       <h4 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
         <Star className="w-4 h-4 text-amber-500" />
-        Hinge Pattern Legend
+        Field Dependencies Legend
       </h4>
 
       <div className="space-y-2 mb-4">
@@ -340,7 +344,7 @@ function HingesInsightPanel({
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
         <div className="flex items-center gap-2 text-amber-800">
           <AlertCircle className="w-5 h-5" />
-          <span className="font-medium">Hinge config unavailable</span>
+          <span className="font-medium">Field Dependencies unavailable</span>
         </div>
         <p className="text-sm text-amber-700 mt-1">{hingesConfig.error}</p>
       </div>
@@ -351,8 +355,8 @@ function HingesInsightPanel({
     return (
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center text-gray-500">
         <HelpCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        <p className="text-sm">No hinge rules configured for this sheet</p>
-        <p className="text-xs mt-1">Upload a hinges configuration file to see rule insights</p>
+        <p className="text-sm">No field dependency rules configured for this sheet</p>
+        <p className="text-xs mt-1">Upload a Field Dependencies configuration file to see rule insights</p>
       </div>
     );
   }
@@ -363,7 +367,7 @@ function HingesInsightPanel({
         <div>
           <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
             <Lightbulb className="w-4 h-4 text-amber-500" />
-            Hinge Groups ({activeSheetName})
+            Field Groups ({activeSheetName})
           </h4>
           <div className="space-y-3">
             {hingeGroups.map((group) => {
@@ -418,7 +422,7 @@ function HingesInsightPanel({
         <div>
           <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
             <Lightbulb className="w-4 h-4 text-amber-500" />
-            Hinge Fields ({activeSheetName})
+            Field Dependencies ({activeSheetName})
           </h4>
           <div className="bg-white border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
@@ -426,7 +430,7 @@ function HingesInsightPanel({
                 <tr className="bg-gray-50 border-b">
                   <th className="text-left p-2 font-medium text-gray-600">Field</th>
                   <th className="text-left p-2 font-medium text-gray-600">Level</th>
-                  <th className="text-left p-2 font-medium text-gray-600">Why It Hinges</th>
+                  <th className="text-left p-2 font-medium text-gray-600">Dependency Reason</th>
                 </tr>
               </thead>
               <tbody>
@@ -534,11 +538,14 @@ export function QAReviewerDashboard({
   dataset,
   anomalyMap,
   rfiComments,
+  rfiEntriesV2,
   fieldStatuses,
   hingesConfig,
   flagMap,
   activeSheetName,
   onOpenRow,
+  onUpdateRfiEntry,
+  onFieldChange,
 }: QAReviewerDashboardProps) {
   const counts: AnomalyCounts = useMemo(
     () => getAnomalyCounts(dataset, anomalyMap, rfiComments, fieldStatuses),
@@ -646,7 +653,7 @@ export function QAReviewerDashboard({
 
           <div className="bg-white border rounded-lg">
             <div className="border-b px-4 py-3">
-              <h3 className="font-semibold text-gray-800">Rules & Hinges Insight</h3>
+              <h3 className="font-semibold text-gray-800">Rules & Field Dependencies</h3>
             </div>
             <div className="p-4">
               <HingesInsightPanel hingesConfig={hingesConfig} activeSheetName={activeSheetName} />

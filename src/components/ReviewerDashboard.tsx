@@ -16,21 +16,27 @@ import {
   HingesConfig,
   ReviewerTab,
   FlagMap,
+  RfiCommentEntry,
 } from '../types';
+import { countOpenRfisByTarget } from '../utils/rfiUtils';
 import { QAReviewerDashboard } from './QAReviewerDashboard';
 import { SalesforceVerifierDashboard } from './SalesforceVerifierDashboard';
+import { ARReviewerDashboard } from './ARReviewerDashboard';
 import { loadHingesConfigFromFile, clearHingesConfig } from '../config/hingesConfig';
 
 interface ReviewerDashboardProps {
   dataset: Dataset | null;
   anomalyMap: AnomalyMap;
   rfiComments: RfiComments;
+  rfiEntriesV2: RfiCommentEntry[];
   fieldStatuses: FieldStatus;
   hingesConfig: HingesConfig;
   flagMap: FlagMap;
   activeSheetName: string;
   onOpenRow: (sheetName: string, rowIndex: number) => void;
   onHingesConfigChange: (config: HingesConfig) => void;
+  onUpdateRfiEntry: (entryId: string, updates: Partial<RfiCommentEntry>) => void;
+  onFieldChange: (sheetName: string, rowIndex: number, fieldName: string, value: string) => void;
   onClose: () => void;
 }
 
@@ -38,12 +44,15 @@ export function ReviewerDashboard({
   dataset,
   anomalyMap,
   rfiComments,
+  rfiEntriesV2,
   fieldStatuses,
   hingesConfig,
   flagMap,
   activeSheetName,
   onOpenRow,
   onHingesConfigChange,
+  onUpdateRfiEntry,
+  onFieldChange,
   onClose,
 }: ReviewerDashboardProps) {
   const [activeTab, setActiveTab] = useState<ReviewerTab>('qa-reviewer');
@@ -125,7 +134,7 @@ export function ReviewerDashboard({
               <div className="flex items-center gap-2">
                 <span className="text-xs text-green-600 flex items-center gap-1">
                   <Check className="w-3.5 h-3.5" />
-                  Hinges loaded
+                  Field Dependencies loaded
                 </span>
                 <button
                   onClick={handleClearHingesConfig}
@@ -144,7 +153,7 @@ export function ReviewerDashboard({
                 }`}
               >
                 <Upload className="w-3.5 h-3.5" />
-                {isUploadingHinges ? 'Loading...' : 'Load Hinges Config'}
+                {isUploadingHinges ? 'Loading...' : 'Load Field Dependencies'}
               </label>
             )}
 
@@ -158,51 +167,85 @@ export function ReviewerDashboard({
         </div>
 
         <div className="border-b bg-white px-6">
-          <div className="flex gap-1">
-            <button
-              onClick={() => setActiveTab('qa-reviewer')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'qa-reviewer'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <ClipboardCheck className="w-4 h-4" />
-                QA Reviewer
-              </span>
-            </button>
-            <button
-              onClick={() => setActiveTab('salesforce-verifier')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'salesforce-verifier'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <Database className="w-4 h-4" />
-                Salesforce Verifier
-              </span>
-            </button>
-          </div>
+          {(() => {
+            const rfiCounts = countOpenRfisByTarget(rfiEntriesV2);
+            return (
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setActiveTab('qa-reviewer')}
+                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'qa-reviewer'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <ClipboardCheck className="w-4 h-4" />
+                    QA Reviewer
+                    {rfiCounts.qa > 0 && (
+                      <span className="px-1.5 py-0.5 bg-blue-500 text-white text-xs rounded-full font-bold min-w-[18px] text-center">
+                        {rfiCounts.qa}
+                      </span>
+                    )}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('salesforce-verifier')}
+                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'salesforce-verifier'
+                      ? 'border-orange-600 text-orange-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Database className="w-4 h-4" />
+                    Salesforce Verifier
+                    {rfiCounts.salesforce > 0 && (
+                      <span className="px-1.5 py-0.5 bg-orange-500 text-white text-xs rounded-full font-bold min-w-[18px] text-center">
+                        {rfiCounts.salesforce}
+                      </span>
+                    )}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('ar-reviewer')}
+                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'ar-reviewer'
+                      ? 'border-teal-600 text-teal-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4" />
+                    A&R (Contract SME)
+                    {rfiCounts.ar > 0 && (
+                      <span className="px-1.5 py-0.5 bg-teal-500 text-white text-xs rounded-full font-bold min-w-[18px] text-center">
+                        {rfiCounts.ar}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              </div>
+            );
+          })()}
         </div>
 
         {hingesConfig.error && (
           <div className="mx-6 mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
             <p className="text-sm text-amber-700">
-              Hinge config unavailable: {hingesConfig.error}
+              Field Dependencies unavailable: {hingesConfig.error}
             </p>
           </div>
         )}
 
         <div className="flex-1 overflow-y-auto p-6">
-          {activeTab === 'qa-reviewer' ? (
+          {activeTab === 'qa-reviewer' && (
             <QAReviewerDashboard
               dataset={dataset}
               anomalyMap={anomalyMap}
               rfiComments={rfiComments}
+              rfiEntriesV2={rfiEntriesV2}
               fieldStatuses={fieldStatuses}
               hingesConfig={hingesConfig}
               flagMap={flagMap}
@@ -211,18 +254,36 @@ export function ReviewerDashboard({
                 onOpenRow(sheetName, rowIndex);
                 onClose();
               }}
+              onUpdateRfiEntry={onUpdateRfiEntry}
+              onFieldChange={onFieldChange}
             />
-          ) : (
+          )}
+          {activeTab === 'salesforce-verifier' && (
             <SalesforceVerifierDashboard
               dataset={dataset}
               anomalyMap={anomalyMap}
               rfiComments={rfiComments}
+              rfiEntriesV2={rfiEntriesV2}
               fieldStatuses={fieldStatuses}
               flagMap={flagMap}
               onOpenRow={(sheetName, rowIndex) => {
                 onOpenRow(sheetName, rowIndex);
                 onClose();
               }}
+              onUpdateRfiEntry={onUpdateRfiEntry}
+              onFieldChange={onFieldChange}
+            />
+          )}
+          {activeTab === 'ar-reviewer' && (
+            <ARReviewerDashboard
+              dataset={dataset}
+              rfiEntriesV2={rfiEntriesV2}
+              onOpenRow={(sheetName, rowIndex) => {
+                onOpenRow(sheetName, rowIndex);
+                onClose();
+              }}
+              onUpdateRfiEntry={onUpdateRfiEntry}
+              onFieldChange={onFieldChange}
             />
           )}
         </div>

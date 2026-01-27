@@ -21,18 +21,25 @@ import {
   FlagRecord,
   FLAG_CATEGORY_LABELS,
   isFlagRoutedToSalesforce,
+  RfiCommentEntry,
+  RFI_TYPE_LABELS,
 } from '../types';
 import {
   getRfiAndCommentRows,
 } from '../utils/reviewerHelpers';
+import { getAllRfisByTarget, getRfiStatusColor } from '../utils/rfiUtils';
+import { AnswerRfiModal } from './AnswerRfiModal';
 
 interface SalesforceVerifierDashboardProps {
   dataset: Dataset | null;
   anomalyMap: AnomalyMap;
   rfiComments: RfiComments;
+  rfiEntriesV2: RfiCommentEntry[];
   fieldStatuses: FieldStatus;
   flagMap: FlagMap;
   onOpenRow: (sheetName: string, rowIndex: number) => void;
+  onUpdateRfiEntry: (entryId: string, updates: Partial<RfiCommentEntry>) => void;
+  onFieldChange: (sheetName: string, rowIndex: number, fieldName: string, value: string) => void;
 }
 
 type SortField = 'sheet' | 'row' | 'field';
@@ -289,10 +296,54 @@ export function SalesforceVerifierDashboard({
   dataset,
   anomalyMap,
   rfiComments,
+  rfiEntriesV2,
   fieldStatuses,
   flagMap,
   onOpenRow,
+  onUpdateRfiEntry,
+  onFieldChange,
 }: SalesforceVerifierDashboardProps) {
+  const [answerModalEntry, setAnswerModalEntry] = useState<RfiCommentEntry | null>(null);
+
+  const sfRfis = useMemo(() => getAllRfisByTarget(rfiEntriesV2, 'salesforce'), [rfiEntriesV2]);
+
+  const getCurrentFieldValue = (rfi: RfiCommentEntry): string => {
+    if (!dataset) return '';
+    const sheet = dataset.sheets.find((s) => s.name === rfi.sheetName);
+    if (!sheet || !sheet.rows[rfi.rowIndex]) return '';
+    return String(sheet.rows[rfi.rowIndex][rfi.fieldName] || '');
+  };
+
+  const handleAnswerSubmit = (response: string, applyFix: boolean, newValue: string) => {
+    if (!answerModalEntry) return;
+
+    const updates: Partial<RfiCommentEntry> = {
+      status: 'answered',
+      verifierResponse: response,
+      answeredAt: new Date().toISOString(),
+      answeredByRole: 'salesforce',
+    };
+
+    if (applyFix && newValue !== undefined) {
+      const previousValue = getCurrentFieldValue(answerModalEntry);
+      updates.appliedFix = {
+        previousValue,
+        newValue,
+        appliedAt: new Date().toISOString(),
+        appliedByRole: 'salesforce',
+      };
+      onFieldChange(
+        answerModalEntry.sheetName,
+        answerModalEntry.rowIndex,
+        answerModalEntry.fieldName,
+        newValue
+      );
+    }
+
+    onUpdateRfiEntry(answerModalEntry.id, updates);
+    setAnswerModalEntry(null);
+  };
+
   const rfiRows: RfiCommentRow[] = useMemo(
     () => getRfiAndCommentRows(dataset, rfiComments, fieldStatuses),
     [dataset, rfiComments, fieldStatuses]

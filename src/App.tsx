@@ -60,6 +60,7 @@ import {
   FlagMap,
   FlagCategory,
   FlagSeverity,
+  RfiCommentEntry,
 } from './types';
 import { deriveRowReviewReason } from './utils/rowReviewLogic';
 import { buildRfiComment } from './utils/contractFailureClassifier';
@@ -72,6 +73,12 @@ import {
   clearFlagsForRow,
   migrateContractNotApplicableToFlags,
 } from './utils/flagUtils';
+import {
+  createRfiEntry,
+  updateRfiEntry,
+  deleteRfiEntry,
+  migrateLegacyRfis,
+} from './utils/rfiUtils';
 import { Upload, BookOpen } from 'lucide-react';
 import { storage } from './lib/storage';
 import { QuickActionBar } from './components/QuickActionBar';
@@ -134,6 +141,7 @@ function App() {
   const [isFlagModalOpen, setIsFlagModalOpen] = useState(false);
   const [showReviewerDashboard, setShowReviewerDashboard] = useState(false);
   const [flagMap, setFlagMap] = useState<FlagMap>({});
+  const [rfiEntriesV2, setRfiEntriesV2] = useState<RfiCommentEntry[]>([]);
   const [hingesConfig, setHingesConfig] = useState<HingesConfig>(() => loadHingesConfig());
 
   const isDesktop = useIsDesktop();
@@ -181,6 +189,12 @@ function App() {
             loadedFlags = migrateContractNotApplicableToFlags(project.anomalyMap);
           }
           setFlagMap(loadedFlags);
+
+          let loadedRfiEntriesV2 = project.rfiEntriesV2 || [];
+          if (loadedRfiEntriesV2.length === 0 && project.rfiComments && Object.keys(project.rfiComments).length > 0) {
+            loadedRfiEntriesV2 = migrateLegacyRfis(project.rfiComments);
+          }
+          setRfiEntriesV2(loadedRfiEntriesV2);
         }
       } catch (err) {
         console.error('Failed to load project:', err);
@@ -288,6 +302,7 @@ function App() {
             glossaryEntries: glossaryState.entries,
             driveMeta,
             flagMap,
+            rfiEntriesV2,
           });
         } catch (err) {
           console.error('Failed to save project:', err);
@@ -297,7 +312,7 @@ function App() {
 
     const timeoutId = setTimeout(saveProject, 500);
     return () => clearTimeout(timeoutId);
-  }, [currentProjectId, appState, rfiComments, modificationHistory, analystRemarks, anomalyMap, contractFailureOverrides, glossaryState, driveMeta, flagMap]);
+  }, [currentProjectId, appState, rfiComments, modificationHistory, analystRemarks, anomalyMap, contractFailureOverrides, glossaryState, driveMeta, flagMap, rfiEntriesV2]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -589,6 +604,80 @@ function App() {
       return newComments;
     });
   }, [appState.activeSheetName, appState.currentRowIndex]);
+
+  const handleCreateRfiEntry = useCallback((
+    params: Omit<RfiCommentEntry, 'id' | 'routedAt' | 'routedBy' | 'status'>
+  ) => {
+    const entry = createRfiEntry({
+      sheetName: params.sheetName,
+      rowIndex: params.rowIndex,
+      fieldName: params.fieldName,
+      comment: params.comment,
+      rfiType: params.rfiType,
+      routedTo: params.routedTo,
+    });
+    setRfiEntriesV2((prev) => [...prev, entry]);
+  }, []);
+
+  const handleUpdateRfiEntry = useCallback((entryId: string, updates: Partial<RfiCommentEntry>) => {
+    setRfiEntriesV2((prev) => updateRfiEntry(prev, entryId, updates));
+  }, []);
+
+  const handleDeleteRfiEntry = useCallback((entryId: string) => {
+    setRfiEntriesV2((prev) => deleteRfiEntry(prev, entryId));
+  }, []);
+
+  const handleFieldChangeWithSheet = useCallback((
+    sheetName: string,
+    rowIndex: number,
+    fieldName: string,
+    value: string
+  ) => {
+    setAppState((prev) => {
+      if (!prev.dataset) return prev;
+
+      const newDataset = { ...prev.dataset };
+      const sheet = newDataset.sheets.find((s) => s.name === sheetName);
+      if (sheet && sheet.rows[rowIndex]) {
+        const originalSheet = prev.originalDataset?.sheets.find((s) => s.name === sheetName);
+        const originalValue = originalSheet?.rows[rowIndex]?.[fieldName];
+        const currentValue = sheet.rows[rowIndex][fieldName];
+
+        if (currentValue !== value) {
+          setModificationHistory((prevHistory) => {
+            const newHistory = { ...prevHistory };
+            if (!newHistory[sheetName]) {
+              newHistory[sheetName] = {};
+            }
+            if (!newHistory[sheetName][rowIndex]) {
+              newHistory[sheetName][rowIndex] = {};
+            }
+
+            const existingMod = newHistory[sheetName][rowIndex][fieldName];
+            const baseOriginal = existingMod?.originalValue ?? originalValue ?? currentValue;
+
+            if (String(baseOriginal) === value) {
+              delete newHistory[sheetName][rowIndex][fieldName];
+            } else {
+              newHistory[sheetName][rowIndex][fieldName] = {
+                originalValue: baseOriginal,
+                newValue: value,
+                timestamp: new Date().toISOString(),
+                modificationType: 'manual_edit',
+                reason: 'Manual edit by user',
+              };
+            }
+
+            return newHistory;
+          });
+        }
+
+        sheet.rows[rowIndex][fieldName] = value;
+      }
+
+      return { ...prev, dataset: newDataset };
+    });
+  }, []);
 
   const handleGlossaryUpload = useCallback(async (file: File) => {
     try {
@@ -1186,6 +1275,7 @@ function App() {
         setContractFailureOverrides({});
         setFieldViewMode('all');
         setFlagMap({});
+        setRfiEntriesV2([]);
         setGlossaryState({
           entries: {},
           config: null,
@@ -1290,6 +1380,9 @@ function App() {
         onDriveExport={handleDriveExport}
         isDriveExporting={isDriveExporting}
         rowReviewStatuses={rowReviewStatuses}
+        rfiEntriesV2={rfiEntriesV2}
+        flagMap={flagMap}
+        onOpenReviewerHub={() => setShowReviewerDashboard(true)}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -1331,6 +1424,9 @@ function App() {
                     glossary={getGlossaryForSheet(glossaryState.entries, appState.activeSheetName)}
                     rfiComments={rfiComments}
                     onRfiCommentChange={handleRfiCommentChange}
+                    rfiEntriesV2={rfiEntriesV2}
+                    onCreateRfiEntry={handleCreateRfiEntry}
+                    onDeleteRfiEntry={handleDeleteRfiEntry}
                     changeMap={changeMap}
                     modificationHistory={modificationHistory}
                     anomalyMap={anomalyMap}
@@ -1373,6 +1469,9 @@ function App() {
                   glossary={getGlossaryForSheet(glossaryState.entries, appState.activeSheetName)}
                   rfiComments={rfiComments}
                   onRfiCommentChange={handleRfiCommentChange}
+                  rfiEntriesV2={rfiEntriesV2}
+                  onCreateRfiEntry={handleCreateRfiEntry}
+                  onDeleteRfiEntry={handleDeleteRfiEntry}
                   changeMap={changeMap}
                   modificationHistory={modificationHistory}
                   anomalyMap={anomalyMap}
@@ -1404,6 +1503,7 @@ function App() {
             onQueueViewChange={setQueueView}
             activeFilter={activeQueueFilter}
             onFilterChange={setActiveQueueFilter}
+            rfiEntriesV2={rfiEntriesV2}
           />
         )}
       </div>
@@ -1503,6 +1603,7 @@ function App() {
           dataset={appState.dataset}
           anomalyMap={anomalyMap}
           rfiComments={rfiComments}
+          rfiEntriesV2={rfiEntriesV2}
           fieldStatuses={appState.fieldStatuses}
           hingesConfig={hingesConfig}
           flagMap={flagMap}
@@ -1516,6 +1617,8 @@ function App() {
             }));
           }}
           onHingesConfigChange={setHingesConfig}
+          onUpdateRfiEntry={handleUpdateRfiEntry}
+          onFieldChange={handleFieldChangeWithSheet}
           onClose={() => setShowReviewerDashboard(false)}
         />
       )}

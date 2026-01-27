@@ -54,6 +54,53 @@ export interface RfiComments {
   };
 }
 
+export type RfiRoutingTarget = 'qa' | 'salesforce' | 'ar';
+export type RfiType = 'data_format' | 'extraction' | 'contract_meaning' | 'other';
+export type RfiStatus = 'open' | 'answered' | 'resolved';
+
+export interface RfiAppliedFix {
+  previousValue: string | null;
+  newValue: string | null;
+  appliedAt: string;
+  appliedByRole: RfiRoutingTarget | 'analyst';
+}
+
+export interface RfiCommentEntry {
+  id: string;
+  sheetName: string;
+  rowIndex: number;
+  fieldName: string;
+  comment: string;
+  rfiType: RfiType;
+  routedTo: RfiRoutingTarget[];
+  routedAt: string;
+  routedBy: 'analyst' | 'system';
+  status: RfiStatus;
+  verifierResponse?: string;
+  answeredAt?: string;
+  answeredByRole?: RfiRoutingTarget | 'analyst';
+  appliedFix?: RfiAppliedFix;
+}
+
+export const RFI_TYPE_LABELS: Record<RfiType, string> = {
+  data_format: 'Data Format/Mapping',
+  extraction: 'Extraction Mismatch',
+  contract_meaning: 'Contract Meaning/Rights',
+  other: 'Other',
+};
+
+export const RFI_ROUTING_LABELS: Record<RfiRoutingTarget, string> = {
+  qa: 'QA',
+  salesforce: 'Salesforce',
+  ar: 'A&R',
+};
+
+export const RFI_ROUTING_COLORS: Record<RfiRoutingTarget, { bg: string; text: string; dot: string }> = {
+  qa: { bg: 'bg-blue-100', text: 'text-blue-700', dot: 'bg-blue-500' },
+  salesforce: { bg: 'bg-orange-100', text: 'text-orange-700', dot: 'bg-orange-500' },
+  ar: { bg: 'bg-teal-100', text: 'text-teal-700', dot: 'bg-teal-500' },
+};
+
 export interface GlossaryTerm {
   term: string;
   definition: string;
@@ -541,7 +588,7 @@ export interface FlaggedDocumentRow {
   flaggedAt: string;
 }
 
-export type ReviewerTab = 'qa-reviewer' | 'salesforce-verifier';
+export type ReviewerTab = 'qa-reviewer' | 'salesforce-verifier' | 'ar-reviewer';
 
 export type FlagCategory = 'extraction' | 'salesforce' | 'data_mgmt' | 'other';
 

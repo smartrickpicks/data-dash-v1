@@ -17,6 +17,7 @@ import {
   LogOut,
   Database,
   Trash2,
+  ClipboardList,
 } from 'lucide-react';
 import {
   Dataset,
@@ -29,7 +30,10 @@ import {
   DriveProjectMeta,
   DriveExportVariant,
   RowReviewStatusMap,
+  RfiCommentEntry,
+  FlagMap,
 } from '../types';
+import { getTotalOpenRfis } from '../utils/rfiUtils';
 import { exportData, ExportOptions } from '../utils/exportData';
 import { computeSheetAnalytics } from '../utils/analytics';
 import { useGoogleAuth } from '../contexts/GoogleAuthContext';
@@ -52,6 +56,9 @@ interface SidebarProps {
   onDriveExport?: (variant: DriveExportVariant, type: 'full' | 'spreadsheet' | 'logs') => void;
   isDriveExporting?: boolean;
   rowReviewStatuses: RowReviewStatusMap;
+  rfiEntriesV2: RfiCommentEntry[];
+  flagMap: FlagMap;
+  onOpenReviewerHub: () => void;
 }
 
 export function Sidebar({
@@ -71,6 +78,9 @@ export function Sidebar({
   onDriveExport,
   isDriveExporting,
   rowReviewStatuses,
+  rfiEntriesV2,
+  flagMap,
+  onOpenReviewerHub,
 }: SidebarProps) {
   const analytics = computeSheetAnalytics(
     dataset,
@@ -284,6 +294,33 @@ export function Sidebar({
                   Single Row Review
                 </button>
               </div>
+            </div>
+
+            {/* Reviewer Hub Button */}
+            <div className="pt-3 border-t border-slate-700">
+              {(() => {
+                const openRfiCount = getTotalOpenRfis(rfiEntriesV2);
+                const openFlagCount = Object.values(flagMap).reduce(
+                  (sum, rowFlags) => sum + rowFlags.length,
+                  0
+                );
+                const totalOpenItems = openRfiCount + openFlagCount;
+
+                return (
+                  <button
+                    onClick={onOpenReviewerHub}
+                    className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-sm font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors"
+                  >
+                    <ClipboardList className="w-4 h-4" />
+                    <span className="flex-1 text-left">Reviewer Hub</span>
+                    {totalOpenItems > 0 && (
+                      <span className="px-1.5 py-0.5 bg-amber-500 text-white text-xs rounded-full font-bold min-w-[20px] text-center">
+                        {totalOpenItems}
+                      </span>
+                    )}
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </div>

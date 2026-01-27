@@ -268,11 +268,11 @@ export function FieldsEditor({
                   ? 'bg-amber-100 text-amber-700 border border-amber-300'
                   : 'bg-slate-100 text-slate-600 hover:bg-amber-50 hover:text-amber-600'
               }`}
-              title={showHingeHints ? 'Hide hinge hints' : 'Show hinge hints'}
+              title={showHingeHints ? 'Hide field groups' : 'Show field groups'}
             >
               {showHingeHints ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
               <Lightbulb className="w-3 h-3" />
-              Hinges
+              Field Groups
             </button>
           )}
         </div>
