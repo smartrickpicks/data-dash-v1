@@ -76,7 +76,11 @@ data-dash-v1 is a modern, TypeScript-based React dashboard application built wit
 ## Features
 - Interactive data dashboards using React and TypeScript
 - Import and parse Excel (.xlsx) and CSV files with `exceljs` and `papaparse`
-- Render and manipulate PDF documents with `react-pdf` and `pdfjs-dist`
+- **Advanced PDF rendering with S3 bucket support and intelligent text highlighting** - [Read the technical docs](docs/PDF_RENDERING_FEATURE.md)
+  - Automatic CORS bypass via secure HTTP proxy
+  - Real-time field value highlighting in PDF documents
+  - Smart caching with IndexedDB for instant repeat loads
+  - Interactive legend and filtering for highlighted fields
 - Clean and responsive UI enhanced with Tailwind CSS and Lucide icons
 - Fast development experience powered by Vite
 - Built-in linting and type-checking for code quality assurance
